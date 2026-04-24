@@ -1,0 +1,15 @@
+{
+  "default_server_name": "celesteai.ru",
+  "default_server_config": {
+    "m.homeserver": {
+      "base_url": "https://matrix.celesteai.ru",
+      "server_name": "celesteai.ru"
+    }
+  },
+  "brand": "Celeste Chat",
+  "disable_custom_urls": true,
+  "disable_guests": true,
+  "show_labs_settings": false,
+  "integrations_ui_url": "",
+  "integrations_rest_url": ""
+}
