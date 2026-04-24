@@ -18,6 +18,7 @@ The setup is designed for the current server layout on `celeste`:
 ## Files
 
 - `docker-compose.yml` - starts the three containers
+- `Makefile` - wraps `docker compose` commands
 - `continuwuity.toml` - homeserver config
 - `element-config.json` - Element Web config
 - `well-known/nginx.conf` - static `.well-known` endpoints
@@ -41,9 +42,17 @@ Then on the server:
 
 ```bash
 cd /root/celesteai
-docker compose pull
-docker compose up -d
-docker compose logs -f continuwuity
+make pull
+make up
+make logs
+```
+
+If you deploy from the repository root, you can also use:
+
+```bash
+make matrix-pull
+make matrix-up
+make matrix-logs
 ```
 
 ## Verify
