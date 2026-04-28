@@ -1,0 +1,29 @@
+[global]
+server_name = "celesteai.ru"
+address = ["0.0.0.0"]
+port = 8008
+database_path = "/var/lib/continuwuity"
+allow_registration = true
+
+# Optional hardening:
+# suspend_on_register = true
+# recaptcha_site_key = "..."
+# recaptcha_private_site_key = "..."
+
+[global.well_known]
+client = "https://matrix.celesteai.ru"
+server = "matrix.celesteai.ru:443"
+
+[global.smtp]
+# Continuwuity already supports email-based validation and password resets.
+# If the client omits `username` during registration, the homeserver will use
+# the localpart from the verified email address as the initial Matrix localpart.
+#
+# Replace the placeholders below with your real SMTP settings.
+# If the SMTP username itself is an email, `@` must be URL-encoded as `%40`.
+connection_uri = "smtps://mailer%40celesteai.ru:CHANGE_ME@mail.celesteai.ru:465"
+sender = "CHANGE_ME <noreply@celesteai.ru>"
+
+# Force email verification during all registrations.
+require_email_for_registration = true
+require_email_for_token_registration = true

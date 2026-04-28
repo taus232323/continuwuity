@@ -6,7 +6,7 @@
       "server_name": "celesteai.ru"
     }
   },
-  "brand": "Celeste Chat",
+  "brand": "CHANGE_ME",
   "disable_custom_urls": true,
   "disable_guests": true,
   "show_labs_settings": false,

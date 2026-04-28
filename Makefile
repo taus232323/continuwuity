@@ -1,7 +1,8 @@
 .PHONY: matrix-help matrix-pull matrix-up matrix-down matrix-restart matrix-logs matrix-ps matrix-config
 
-MATRIX_COMPOSE_FILE := deploy/celesteai/docker-compose.yml
-MATRIX_COMPOSE := docker compose -f $(MATRIX_COMPOSE_FILE)
+MATRIX_COMPOSE_FILE := deploy/docker-compose.yml
+MATRIX_COMPOSE_PROJECT ?= celesteai
+MATRIX_COMPOSE := docker compose -p $(MATRIX_COMPOSE_PROJECT) -f $(MATRIX_COMPOSE_FILE)
 
 matrix-help:
 	@printf "%s\n" \
