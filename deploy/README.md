@@ -55,24 +55,24 @@ an explicit `username`, the created Matrix ID will default to something like
 
 ## SMTP Setup
 
-Edit [continuwuity.toml](</Users/taus/Projects/continuwuity/deploy/continuwuity.toml>)
-and replace the placeholder SMTP values in `[global.smtp]`:
+SMTP credentials are now supplied through the local `.env` file in the
+repository root, not committed to git.
 
-- `connection_uri`
-- `sender`
+1. Copy [`.env.example`](</Users/taus/Projects/continuwuity/.env.example>) to
+   `../.env` from this directory.
+2. Fill in your real Yandex app password.
+3. Keep `deploy/continuwuity.toml` unchanged unless you want to change the
+   registration policy.
 
-Example URI shape:
+Required variables:
 
-```toml
-connection_uri = "smtps://mailer%40celesteai.ru:APP_PASSWORD@smtp.your-provider.tld:465"
-sender = "Messenger Name <noreply@celesteai.ru>"
-```
-
-If the SMTP username is an email address, encode `@` as `%40`.
+- `CONTINUWUITY_SMTP__CONNECTION_URI`
+- `CONTINUWUITY_SMTP__SENDER`
+- `CONTINUWUITY_SMTP__REQUIRE_EMAIL_FOR_REGISTRATION`
+- `CONTINUWUITY_SMTP__REQUIRE_EMAIL_FOR_TOKEN_REGISTRATION`
 
 Also replace visible product placeholders:
 
-- `sender = "CHANGE_ME <noreply@celesteai.ru>"` in `continuwuity.toml`
 - `"brand": "CHANGE_ME"` in `element-config.json`
 
 The Docker Compose project is pinned by the root `Makefile` as `celesteai` to

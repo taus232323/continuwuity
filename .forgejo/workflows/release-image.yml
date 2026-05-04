@@ -41,8 +41,6 @@ jobs:
         include:
           - platform: "linux/amd64"
             slug: "linux-amd64"
-          - platform: "linux/arm64"
-            slug: "linux-arm64"
 
     steps:
       - name: Checkout repository
@@ -106,7 +104,7 @@ jobs:
       - name: Create multi-platform manifest
         uses: ./.forgejo/actions/create-docker-manifest
         with:
-          digest_pattern: "digests-linux-{amd64,arm64}"
+          digest_pattern: "digests-linux-amd64"
           tag_suffix: ""
           images: ${{ env.IMAGE_PATH }}
           registry_user: ${{ vars.BUILTIN_REGISTRY_USER || github.actor }}
@@ -127,9 +125,6 @@ jobs:
           - platform: "linux/amd64"
             slug: "linux-amd64"
             target_cpu: "haswell"
-          - platform: "linux/arm64"
-            slug: "linux-arm64"
-            target_cpu: ""
 
     steps:
       - name: Checkout repository
@@ -193,7 +188,7 @@ jobs:
       - name: Create max-perf manifest
         uses: ./.forgejo/actions/create-docker-manifest
         with:
-          digest_pattern: "digests-maxperf-linux-{amd64-haswell,arm64}"
+          digest_pattern: "digests-maxperf-linux-amd64-haswell"
           tag_suffix: "-maxperf"
           images: ${{ env.IMAGE_PATH }}
           registry_user: ${{ vars.BUILTIN_REGISTRY_USER || github.actor }}

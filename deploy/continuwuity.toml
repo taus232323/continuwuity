@@ -14,15 +14,9 @@ allow_registration = true
 client = "https://matrix.celesteai.ru"
 server = "matrix.celesteai.ru:443"
 
-[global.smtp]
-# Continuwuity already supports email-based validation and password resets.
-# If the client omits `username` during registration, the homeserver will use
-# the localpart from the verified email address as the initial Matrix localpart.
-#
-# Replace the placeholders below with your real SMTP settings.
-# If the SMTP username itself is an email, `@` must be URL-encoded as `%40`.
-connection_uri = "smtps://mailer%40celesteai.ru:CHANGE_ME@mail.celesteai.ru:465"
-sender = "CHANGE_ME <noreply@celesteai.ru>"
+# SMTP is supplied from the local `.env` file, which is mounted into the
+# Docker container by `deploy/docker-compose.yml`.
+# See `.env.example` in the repository root for the required variables.
 
 # Force email verification during all registrations.
 require_email_for_registration = true

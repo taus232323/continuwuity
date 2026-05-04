@@ -10,6 +10,8 @@ services:
       - continuwuity_db:/var/lib/continuwuity
       - ./continuwuity.toml:/etc/continuwuity/continuwuity.toml:ro
       - ./continuwuity-resolv.conf:/etc/resolv.conf:ro
+    env_file:
+      - ../.env
 
   matrix-chat:
     image: vectorim/element-web:latest

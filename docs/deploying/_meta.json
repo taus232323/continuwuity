@@ -16,11 +16,6 @@
     },
     {
         "type": "file",
-        "name": "fedora",
-        "label": "Fedora"
-    },
-    {
-        "type": "file",
         "name": "nixos",
         "label": "NixOS"
     },
