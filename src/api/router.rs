@@ -28,10 +28,30 @@ pub fn build(router: Router<State>, server: &Server) -> Router<State> {
         .ruma_route(&client::appservice_ping)
 		.ruma_route(&client::get_supported_versions_route)
 		.ruma_route(&client::get_register_available_route)
-		.ruma_route(&client::register::register_route)
-		.ruma_route(&client::register::request_registration_token_via_email_route)
-		.ruma_route(&client::get_login_types_route)
-		.ruma_route(&client::login_route)
+		.route(
+			"/_matrix/client/v3/register",
+			post(client::register::register_route),
+		)
+		.route(
+			"/_matrix/client/v3/register/email/requestToken",
+			post(client::register::request_registration_token_via_email_route),
+		)
+		.route(
+			"/_matrix/client/v3/register/email/submitToken",
+			post(client::register::submit_registration_token_via_email_route),
+		)
+		.route(
+			"/_matrix/client/v3/login",
+			get(client::get_login_types_route).post(client::login_route),
+		)
+		.route(
+			"/_matrix/client/v3/login/email/requestToken",
+			post(client::login_email_request_token_route),
+		)
+		.route(
+			"/_matrix/client/v3/login/email/submitToken",
+			post(client::login_email_submit_token_route),
+		)
 		.ruma_route(&client::login_token_route)
 		.ruma_route(&client::whoami_route)
 		.ruma_route(&client::logout_route)

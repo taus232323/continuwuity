@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use axum::extract::State;
+use axum::{Json, extract::State};
 use axum_client_ip::ClientIp;
 use conduwuit::{
 	Err, Error, Result, debug, err, info,
@@ -12,46 +12,82 @@ use conduwuit_service::Services;
 use futures::StreamExt;
 use lettre::Address;
 use ruma::{
-	OwnedUserId, UserId,
+	OwnedDeviceId, OwnedUserId, UserId,
 	api::client::{
 		error::ErrorKind,
-		session::{
-			get_login_token,
-			get_login_types::{
-				self,
-				v3::{ApplicationServiceLoginType, PasswordLoginType, TokenLoginType},
-			},
-			login::{
-				self,
-				v3::{DiscoveryInfo, HomeserverInfo},
-			},
-			logout, logout_all,
-		},
-		uiaa::UserIdentifier,
+		session::{get_login_token, logout, logout_all},
 	},
 };
+use serde::{Deserialize, Serialize};
 use service::uiaa::Identity;
+use serde_json::json;
 
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
 use crate::Ruma;
 
+#[derive(Debug, Deserialize)]
+pub(crate) struct LoginEmailRequestTokenRequest {
+	pub client_secret: String,
+	pub login: String,
+	pub password: String,
+	pub send_attempt: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct LoginEmailRequestTokenResponse {
+	pub sid: String,
+	pub email: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct LoginEmailSubmitTokenRequest {
+	pub client_secret: String,
+	pub sid: String,
+	pub token: String,
+	pub device_id: Option<OwnedDeviceId>,
+	pub initial_device_display_name: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct LoginResponse {
+	pub user_id: OwnedUserId,
+	pub access_token: String,
+	pub device_id: Option<OwnedDeviceId>,
+	pub home_server: Option<String>,
+	pub refresh_token: Option<String>,
+}
+
 /// # `GET /_matrix/client/v3/login`
 ///
-/// Get the supported login types of this server. One of these should be used as
-/// the `type` field when logging in.
-#[tracing::instrument(skip_all, fields(%client), name = "login", level = "info")]
-pub(crate) async fn get_login_types_route(
-	State(services): State<crate::State>,
-	ClientIp(client): ClientIp,
-	_body: Ruma<get_login_types::v3::Request>,
-) -> Result<get_login_types::v3::Response> {
-	Ok(get_login_types::v3::Response::new(vec![
-		get_login_types::v3::LoginType::Password(PasswordLoginType::default()),
-		get_login_types::v3::LoginType::ApplicationService(ApplicationServiceLoginType::default()),
-		get_login_types::v3::LoginType::Token(TokenLoginType {
-			get_login_token: services.server.config.login_via_existing_session,
-		}),
-	]))
+/// Returns a simple description of the custom login flow.
+pub(crate) async fn get_login_types_route() -> Result<Json<serde_json::Value>> {
+	Ok(Json(json!({
+		"flows": [
+			{ "stages": ["password", "email_code"] }
+		]
+	})))
+}
+
+async fn email_for_login(services: &Services, user_id: &UserId) -> Result<Address> {
+	if let Some(email) = services
+		.threepid
+		.get_email_for_localpart(user_id.localpart())
+		.await
+	{
+		return Ok(email);
+	}
+
+	let lowercased_user_id = UserId::parse_with_server_name(
+		user_id.localpart().to_lowercase(),
+		&services.config.server_name,
+	)
+	.unwrap();
+
+	services
+		.threepid
+		.get_email_for_localpart(lowercased_user_id.localpart())
+		.await
+		.ok_or_else(|| err!(Request(Forbidden("This account does not have an email address."))))
 }
 
 /// Authenticates the given user by its ID and its password.
@@ -163,27 +199,22 @@ pub(super) async fn ldap_login(
 
 pub(crate) async fn handle_login(
 	services: &Services,
-	identifier: Option<&UserIdentifier>,
+	login: &str,
 	password: &str,
-	user: Option<&String>,
 ) -> Result<OwnedUserId> {
 	debug!("Got password login type");
-	let user_id_or_localpart = match (identifier, user) {
-		| (Some(UserIdentifier::UserIdOrLocalpart(localpart)), _) => localpart,
-		| (Some(UserIdentifier::Email { address }), _) => {
-			let email = Address::try_from(address.to_owned())
-				.map_err(|_| err!(Request(InvalidParam("Email is malformed"))))?;
-
-			&services
-				.threepid
-				.get_localpart_for_email(&email)
-				.await
-				.ok_or_else(|| err!(Request(Forbidden("Invalid identifier or password"))))?
-		},
-		| (None, Some(user)) => user,
-		| _ => {
-			return Err!(Request(InvalidParam("Identifier type not recognized")));
-		},
+	let user_id_or_localpart = if let Ok(user_id) =
+		UserId::parse_with_server_name(login, &services.config.server_name)
+	{
+		user_id.localpart().to_owned()
+	} else if let Ok(email) = Address::try_from(login.to_owned()) {
+		services
+			.threepid
+			.get_localpart_for_email(&email)
+			.await
+			.ok_or_else(|| err!(Request(Forbidden("Invalid identifier or password"))))?
+	} else {
+		return Err!(Request(InvalidParam("Identifier type not recognized")));
 	};
 
 	let user_id =
@@ -227,99 +258,101 @@ pub(crate) async fn handle_login(
 
 /// # `POST /_matrix/client/v3/login`
 ///
-/// Authenticates the user and returns an access token it can use in subsequent
-/// requests.
-///
-/// - The user needs to authenticate using their password (or if enabled using a
-///   json web token)
-/// - If `device_id` is known: invalidates old access token of that device
-/// - If `device_id` is unknown: creates a new device
-/// - Returns access token that is associated with the user and device
-///
-/// Note: You can use [`GET
-/// /_matrix/client/r0/login`](fn.get_supported_versions_route.html) to see
-/// supported login types.
+/// Starts the password-first, email-code login flow.
 #[tracing::instrument(skip_all, fields(%client), name = "login", level = "info")]
 pub(crate) async fn login_route(
 	State(services): State<crate::State>,
 	ClientIp(client): ClientIp,
-	body: Ruma<login::v3::Request>,
-) -> Result<login::v3::Response> {
-	let emergency_mode_enabled = services.config.emergency_password.is_some();
+	Json(body): Json<LoginEmailRequestTokenRequest>,
+) -> Result<Json<LoginEmailRequestTokenResponse>> {
+	if !services.threepid.email_requirement().may_change() {
+		return Err!(Request(Forbidden("Email verification is unavailable.")));
+	}
 
-	// Validate login method
-	// TODO: Other login methods
-	let user_id = match &body.login_info {
-		#[allow(deprecated)]
-		| login::v3::LoginInfo::Password(login::v3::Password {
-			identifier,
-			password,
-			user,
-			..
-		}) => handle_login(&services, identifier.as_ref(), password, user.as_ref()).await?,
-		| login::v3::LoginInfo::Token(login::v3::Token { token }) => {
-			debug!("Got token login type");
-			if !services.server.config.login_via_existing_session {
-				return Err!(Request(Unknown("Token login is not enabled.")));
-			}
-			services.users.find_from_login_token(token).await?
-		},
-		#[allow(deprecated)]
-		| login::v3::LoginInfo::ApplicationService(login::v3::ApplicationService {
-			identifier,
-			user,
-		}) => {
-			debug!("Got appservice login type");
+	let user_id = handle_login(&services, &body.login, &body.password).await?;
+	let email = email_for_login(&services, &user_id).await?;
 
-			let Some(ref info) = body.appservice_info else {
-				return Err!(Request(MissingToken("Missing appservice token.")));
-			};
+	let session = services
+		.threepid
+		.send_validation_code_email(
+			Mailbox::new(None, email.clone()),
+			|verification_code| messages::LoginCode {
+				server_name: services.config.server_name.as_ref(),
+				user_id: &user_id,
+				verification_code: &verification_code,
+			},
+			&body.client_secret,
+			body.send_attempt,
+		)
+		.await?;
 
-			let user_id =
-				if let Some(UserIdentifier::UserIdOrLocalpart(user_id)) = identifier {
-					UserId::parse_with_server_name(user_id, &services.config.server_name)
-				} else if let Some(user) = user {
-					UserId::parse_with_server_name(user, &services.config.server_name)
-				} else {
-					return Err!(Request(Unknown(
-						debug_warn!(?body.login_info, "Valid identifier or username was not provided (invalid or unsupported login type?)")
-					)));
-				}
-				.map_err(|_| err!(Request(InvalidUsername(warn!("User ID is malformed")))))?;
+	info!("{user_id} started login verification from IP {client}");
 
-			if !services.globals.user_is_local(&user_id) {
-				return Err!(Request(Unknown("User ID does not belong to this homeserver")));
-			}
+	Ok(Json(LoginEmailRequestTokenResponse {
+		sid: session.to_string(),
+		email: email.to_string(),
+	}))
+}
 
-			if !info.is_user_match(&user_id) && !emergency_mode_enabled {
-				return Err!(Request(Exclusive("Username is not in an appservice namespace.")));
-			}
+/// # `POST /_matrix/client/v3/login/email/requestToken`
+///
+/// Alias for the first login step.
+pub(crate) async fn login_email_request_token_route(
+	State(services): State<crate::State>,
+	ClientIp(client): ClientIp,
+	Json(body): Json<LoginEmailRequestTokenRequest>,
+) -> Result<Json<LoginEmailRequestTokenResponse>> {
+	login_route(State(services), ClientIp(client), Json(body)).await
+}
 
-			user_id
-		},
-		| _ => {
-			debug!("/login json_body: {:?}", &body.json_body);
-			return Err!(Request(Unknown(
-				debug_warn!(?body.login_info, "Invalid or unsupported login type")
-			)));
-		},
+/// # `POST /_matrix/client/v3/login/email/submitToken`
+///
+/// Finishes the login flow and returns a session.
+#[tracing::instrument(skip_all, fields(%client), name = "login_email_submit", level = "info")]
+pub(crate) async fn login_email_submit_token_route(
+	State(services): State<crate::State>,
+	ClientIp(client): ClientIp,
+	Json(body): Json<LoginEmailSubmitTokenRequest>,
+) -> Result<Json<LoginResponse>> {
+	services
+		.threepid
+		.try_validate_session(&body.sid, &body.token)
+		.await
+		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
+
+	let email = services
+		.threepid
+		.consume_valid_session(&body.sid, &body.client_secret)
+		.await
+		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
+
+	let Some(localpart) = services.threepid.get_localpart_for_email(&email).await else {
+		return Err!(Request(Forbidden("This account is not associated with a user.")));
 	};
 
-	// Generate new device id if the user didn't specify one
+	let user_id = UserId::parse_with_server_name(localpart, &services.config.server_name)
+		.map_err(|_| err!(Request(InvalidUsername("User ID is malformed"))))?;
+
+	if services.users.is_locked(&user_id).await? {
+		return Err(Error::BadRequest(ErrorKind::UserLocked, "This account has been locked."));
+	}
+
+	if services.users.is_login_disabled(&user_id).await {
+		warn!(%user_id, "user attempted to log in with a login-disabled account");
+		return Err!(Request(Forbidden("This account is not permitted to log in.")));
+	}
+
 	let device_id = body
 		.device_id
 		.clone()
 		.unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into());
 
-	// Generate a new token for the device (ensuring no collisions)
 	let token = services.users.generate_unique_token().await;
-
-	// Determine if device_id was provided and exists in the db for this user
-	let device_exists = if body.device_id.is_some() {
+	let device_exists = if let Some(ref provided_device_id) = body.device_id {
 		services
 			.users
 			.all_device_ids(&user_id)
-			.ready_any(|v| v == device_id)
+			.ready_any(|v| v == provided_device_id)
 			.await
 	} else {
 		false
@@ -343,27 +376,15 @@ pub(crate) async fn login_route(
 			.await?;
 	}
 
-	// send client well-known if specified so the client knows to reconfigure itself
-	let client_discovery_info: Option<DiscoveryInfo> = services
-		.server
-		.config
-		.well_known
-		.client
-		.as_ref()
-		.map(|server| DiscoveryInfo::new(HomeserverInfo::new(server.to_string())));
+	info!("{user_id} completed login verification from IP {client}");
 
-	info!("{user_id} logged in");
-
-	#[allow(deprecated)]
-	Ok(login::v3::Response {
+	Ok(Json(LoginResponse {
 		user_id,
 		access_token: token,
-		device_id,
-		well_known: client_discovery_info,
-		expires_in: None,
+		device_id: Some(device_id),
 		home_server: Some(services.config.server_name.clone()),
 		refresh_token: None,
-	})
+	}))
 }
 
 /// # `POST /_matrix/client/v1/login/get_token`

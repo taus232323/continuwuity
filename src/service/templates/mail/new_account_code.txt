@@ -1,0 +1,10 @@
+{% extends "_base.txt" %}
+
+{% block content -%}
+Hello!
+
+Somebody, probably you, tried to create a Matrix account on {{ server_name }} using this email address.
+Use this verification code to continue creating your account:
+    {{ verification_code }}
+If you are not trying to create an account, you can ignore this email. The code will expire in one hour.
+{%- endblock %}

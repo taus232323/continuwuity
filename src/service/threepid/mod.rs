@@ -52,6 +52,11 @@ struct Services {
 	mailer: Dep<mailer::Service>,
 }
 
+struct ValidationChallenge {
+	session_id: OwnedSessionId,
+	token: Option<String>,
+}
+
 impl crate::Service for Service {
 	fn build(args: Args<'_>) -> Result<Arc<Self>> {
 		Ok(Arc::new(Self {
@@ -105,62 +110,15 @@ impl Service {
 		client_secret: &ClientSecret,
 		send_attempt: usize,
 	) -> Result<OwnedSessionId> {
+		let challenge = self
+			.issue_validation_session(recipient.email.clone(), client_secret, send_attempt)
+			.await?;
+
+		let Some(token) = challenge.token else {
+			return Ok(challenge.session_id);
+		};
+
 		let mailer = self.services.mailer.expect_mailer()?;
-		let mut sessions = self.sessions.lock().await;
-
-		let session = match sessions.get_session_by_client_secret(client_secret) {
-			// If a validation session already exists for this client secret, we can either
-			// reuse it with a new token or return early because it's already valid.
-			| Some(session) => {
-				match session.validation_state {
-					| ValidationState::Validated => {
-						// If the existing session is already valid, don't send an email.
-						return Ok(session.session_id.clone());
-					},
-					| ValidationState::Pending(ref mut token) => {
-						// Check ratelimiting for the target address.
-						if self.ratelimiter.check_key(&recipient.email).is_err() {
-							return Err(Error::BadRequest(
-								ErrorKind::LimitExceeded { retry_after: None },
-								"You're sending emails too fast, try again in a few minutes.",
-							));
-						}
-
-						// Check the send attempt for this session.
-						let mut send_attempts = self.send_attempts.lock().unwrap();
-
-						let last_send_attempt = send_attempts
-							.entry((session.client_secret.clone(), session.email.clone()))
-							.or_default();
-
-						if send_attempt <= *last_send_attempt {
-							// If the supplied send attempt isn't higher than the last
-							// one, don't send an email.
-							return Ok(session.session_id.clone());
-						}
-
-						// Save this send attempt.
-						*last_send_attempt = send_attempt;
-						drop(send_attempts);
-
-						// Create a new token for the existing session.
-						*token = ValidationToken::new_random();
-
-						session
-					},
-				}
-			},
-			// If no session exists, create a new one.
-			| None => sessions.create_session(recipient.email.clone(), client_secret.to_owned()),
-		};
-
-		// Clone this so it can outlive the lock we're holding on `sessions`
-		let session_id = session.session_id.clone();
-
-		let ValidationState::Pending(token) = &session.validation_state else {
-			unreachable!("session should be pending")
-		};
-
 		let mut validation_url = self
 			.services
 			.config
@@ -170,18 +128,100 @@ impl Service {
 
 		validation_url
 			.query_pairs_mut()
-			.append_pair("session", session_id.as_str())
-			.append_pair("token", &token.token);
-
-		// Once the validation URL is built, we don't need any data borrowed from
-		// `sessions` anymore and can release our lock
-		drop(sessions);
+			.append_pair("session", challenge.session_id.as_str())
+			.append_pair("token", &token);
 
 		let message = prepare_body(validation_url.to_string());
-
 		mailer.send(recipient, message).await?;
 
-		Ok(session_id)
+		Ok(challenge.session_id)
+	}
+
+	/// Send a validation message containing the code instead of a link.
+	#[allow(clippy::impl_trait_in_params)]
+	pub async fn send_validation_code_email<Template: MessageTemplate>(
+		&self,
+		recipient: Mailbox,
+		prepare_body: impl FnOnce(String) -> Template,
+		client_secret: &ClientSecret,
+		send_attempt: usize,
+	) -> Result<OwnedSessionId> {
+		let challenge = self
+			.issue_validation_session(recipient.email.clone(), client_secret, send_attempt)
+			.await?;
+
+		let Some(token) = challenge.token else {
+			return Ok(challenge.session_id);
+		};
+
+		let mailer = self.services.mailer.expect_mailer()?;
+		let message = prepare_body(token);
+		mailer.send(recipient, message).await?;
+
+		Ok(challenge.session_id)
+	}
+
+	async fn issue_validation_session(
+		&self,
+		email: Address,
+		client_secret: &ClientSecret,
+		send_attempt: usize,
+	) -> Result<ValidationChallenge> {
+		let mut sessions = self.sessions.lock().await;
+
+		let challenge = match sessions.get_session_by_client_secret(client_secret) {
+			| Some(session) => match session.validation_state {
+				| ValidationState::Validated => {
+					return Ok(ValidationChallenge {
+						session_id: session.session_id.clone(),
+						token: None,
+					});
+				},
+				| ValidationState::Pending(ref mut token) => {
+					if self.ratelimiter.check_key(&email).is_err() {
+						return Err(Error::BadRequest(
+							ErrorKind::LimitExceeded { retry_after: None },
+							"You're sending emails too fast, try again in a few minutes.",
+						));
+					}
+
+					let mut send_attempts = self.send_attempts.lock().unwrap();
+					let last_send_attempt = send_attempts
+						.entry((session.client_secret.clone(), session.email.clone()))
+						.or_default();
+
+					if send_attempt <= *last_send_attempt {
+						return Ok(ValidationChallenge {
+							session_id: session.session_id.clone(),
+							token: None,
+						});
+					}
+
+					*last_send_attempt = send_attempt;
+					drop(send_attempts);
+
+					*token = ValidationToken::new_random();
+
+					ValidationChallenge {
+						session_id: session.session_id.clone(),
+						token: Some(token.token.clone()),
+					}
+				},
+			},
+			| None => {
+				let session = sessions.create_session(email, client_secret.to_owned());
+				let ValidationState::Pending(token) = &session.validation_state else {
+					unreachable!("session should be pending")
+				};
+
+				ValidationChallenge {
+					session_id: session.session_id.clone(),
+					token: Some(token.token.clone()),
+				}
+			},
+		};
+
+		Ok(challenge)
 	}
 
 	/// Attempt to mark a validation session as valid using a validation token.

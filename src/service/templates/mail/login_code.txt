@@ -1,0 +1,10 @@
+{% extends "_base.txt" %}
+
+{% block content -%}
+Hello {{ user_id }},
+
+Somebody, probably you, tried to sign in to your Matrix account on {{ server_name }}.
+Use this verification code to finish signing in:
+    {{ verification_code }}
+If you are not trying to sign in, you can ignore this email. The code will expire in one hour.
+{%- endblock %}

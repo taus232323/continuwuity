@@ -29,6 +29,29 @@ impl MessageTemplate for NewAccount<'_> {
 }
 
 #[derive(Template)]
+#[template(path = "mail/new_account_code.txt")]
+pub struct NewAccountCode<'a> {
+	pub server_name: &'a str,
+	pub verification_code: &'a str,
+}
+
+impl MessageTemplate for NewAccountCode<'_> {
+	fn subject(&self) -> String { "Verify your email address".to_owned() }
+}
+
+#[derive(Template)]
+#[template(path = "mail/login_code.txt")]
+pub struct LoginCode<'a> {
+	pub server_name: &'a str,
+	pub user_id: &'a UserId,
+	pub verification_code: &'a str,
+}
+
+impl MessageTemplate for LoginCode<'_> {
+	fn subject(&self) -> String { format!("Sign-in code for {}", &self.user_id) }
+}
+
+#[derive(Template)]
 #[template(path = "mail/password_reset.txt")]
 pub struct PasswordReset<'a> {
 	pub display_name: Option<&'a str>,
