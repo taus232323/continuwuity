@@ -17,8 +17,7 @@ help:
 
 update:
 	git pull
-	$(MATRIX_COMPOSE) down
-	$(MATRIX_COMPOSE) up -d
+	$(MATRIX_COMPOSE) up -d --build
 	$(MATRIX_COMPOSE) logs -f
 
 up:

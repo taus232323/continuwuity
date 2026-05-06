@@ -1,6 +1,6 @@
 services:
   continuwuity:
-    image: ghcr.io/continuwuity/continuwuity:latest
+    image: arcana_homeserver:local
     build:
       context: ..
       dockerfile: docker/Dockerfile
