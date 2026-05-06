@@ -28,9 +28,13 @@ use crate::Ruma;
 #[derive(Debug, Deserialize)]
 pub(crate) struct LoginEmailRequestTokenRequest {
 	pub client_secret: String,
-	pub login: String,
-	pub password: String,
-	pub send_attempt: usize,
+	pub login: Option<String>,
+	pub password: Option<String>,
+	pub send_attempt: Option<usize>,
+	pub sid: Option<String>,
+	pub token: Option<String>,
+	pub device_id: Option<OwnedDeviceId>,
+	pub initial_device_display_name: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -55,6 +59,13 @@ pub(crate) struct LoginResponse {
 	pub device_id: Option<OwnedDeviceId>,
 	pub home_server: Option<String>,
 	pub refresh_token: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub(crate) enum LoginFlowResponse {
+	Request(LoginEmailRequestTokenResponse),
+	Final(LoginResponse),
 }
 
 /// # `GET /_matrix/client/v3/login`
@@ -264,12 +275,47 @@ pub(crate) async fn login_route(
 	State(services): State<crate::State>,
 	ClientIp(client): ClientIp,
 	Json(body): Json<LoginEmailRequestTokenRequest>,
-) -> Result<Json<LoginEmailRequestTokenResponse>> {
+) -> Result<Json<LoginFlowResponse>> {
+	if let (Some(sid), Some(token)) = (body.sid.as_ref(), body.token.as_ref()) {
+		let response = finish_login_after_email_code(
+			&services,
+			client.to_string(),
+			LoginEmailSubmitTokenRequest {
+				client_secret: body.client_secret,
+				sid: sid.clone(),
+				token: token.clone(),
+				device_id: body.device_id,
+				initial_device_display_name: body.initial_device_display_name,
+			},
+		)
+		.await?;
+
+		return Ok(Json(LoginFlowResponse::Final(response)));
+	}
+
+	if body.sid.is_some() || body.token.is_some() {
+		return Err!(Request(InvalidParam(
+			"Both sid and token are required to finish login"
+		)));
+	}
+
 	if !services.threepid.email_requirement().may_change() {
 		return Err!(Request(Forbidden("Email verification is unavailable.")));
 	}
 
-	let user_id = handle_login(&services, &body.login, &body.password).await?;
+	let login = body
+		.login
+		.as_deref()
+		.ok_or_else(|| err!(Request(InvalidParam("Login is required"))))?;
+	let password = body
+		.password
+		.as_deref()
+		.ok_or_else(|| err!(Request(InvalidParam("Password is required"))))?;
+	let send_attempt = body
+		.send_attempt
+		.ok_or_else(|| err!(Request(InvalidParam("send_attempt is required"))))?;
+
+	let user_id = handle_login(&services, login, password).await?;
 	let email = email_for_login(&services, &user_id).await?;
 
 	let session = services
@@ -282,38 +328,24 @@ pub(crate) async fn login_route(
 				verification_code: &verification_code,
 			},
 			&body.client_secret,
-			body.send_attempt,
+			send_attempt,
 		)
 		.await?;
 
 	info!("{user_id} started login verification from IP {client}");
 
-	Ok(Json(LoginEmailRequestTokenResponse {
+	Ok(Json(LoginFlowResponse::Request(LoginEmailRequestTokenResponse {
 		sid: session.to_string(),
 		email: email.to_string(),
-	}))
+	})))
 }
 
-/// # `POST /_matrix/client/v3/login/email/requestToken`
-///
-/// Alias for the first login step.
-pub(crate) async fn login_email_request_token_route(
-	State(services): State<crate::State>,
-	ClientIp(client): ClientIp,
-	Json(body): Json<LoginEmailRequestTokenRequest>,
-) -> Result<Json<LoginEmailRequestTokenResponse>> {
-	login_route(State(services), ClientIp(client), Json(body)).await
-}
-
-/// # `POST /_matrix/client/v3/login/email/submitToken`
-///
-/// Finishes the login flow and returns a session.
 #[tracing::instrument(skip_all, fields(%client), name = "login_email_submit", level = "info")]
-pub(crate) async fn login_email_submit_token_route(
-	State(services): State<crate::State>,
-	ClientIp(client): ClientIp,
-	Json(body): Json<LoginEmailSubmitTokenRequest>,
-) -> Result<Json<LoginResponse>> {
+pub(crate) async fn finish_login_after_email_code(
+	services: &Services,
+	client: String,
+	body: LoginEmailSubmitTokenRequest,
+) -> Result<LoginResponse> {
 	services
 		.threepid
 		.try_validate_session(&body.sid, &body.token)
@@ -371,20 +403,20 @@ pub(crate) async fn login_email_submit_token_route(
 				&device_id,
 				&token,
 				body.initial_device_display_name.clone(),
-				Some(client.to_string()),
+				Some(client.clone()),
 			)
 			.await?;
 	}
 
 	info!("{user_id} completed login verification from IP {client}");
 
-	Ok(Json(LoginResponse {
+	Ok(LoginResponse {
 		user_id,
 		access_token: token,
 		device_id: Some(device_id),
 		home_server: Some(services.config.server_name.clone()),
 		refresh_token: None,
-	}))
+	})
 }
 
 /// # `POST /_matrix/client/v1/login/get_token`

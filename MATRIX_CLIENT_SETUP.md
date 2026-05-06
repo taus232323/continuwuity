@@ -198,7 +198,7 @@ curl -I https://chat.celesteai.ru
 Ожидаемо:
 
 - `/_matrix/client/versions` отвечает HTTP 200 и JSON.
-- `/_matrix/client/v3/login` показывает `m.login.password`.
+- `/_matrix/client/v3/login` показывает flow `password` + `email_code`.
 - `/.well-known/matrix/client` указывает на `https://matrix.celesteai.ru`.
 - `/.well-known/matrix/client` отдает `Access-Control-Allow-Origin: *`.
 - `/.well-known/matrix/server` указывает на `matrix.celesteai.ru:443`.
@@ -317,7 +317,7 @@ Element Android / iOS:
 Тестовый чеклист:
 1. Fresh install открывается с целевым homeserver по умолчанию.
 2. GET /_matrix/client/versions работает.
-3. GET /_matrix/client/v3/login показывает m.login.password.
+3. GET /_matrix/client/v3/login показывает flow password + email_code.
 4. First admin registration работает через m.login.registration_token, либо
    API fallback описан и проверен.
 5. Обычная регистрация отправляет email.
@@ -341,4 +341,3 @@ Element Android / iOS:
   email-first. Сервер может вывести username из verified email localpart, если
   клиент не отправит username.
 ```
-

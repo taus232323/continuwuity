@@ -26,12 +26,11 @@
    - `login` или `email`
    - `password`
 2. После отправки логина и пароля клиент вызывает:
-   - `POST /_matrix/client/v3/login/email/requestToken`
-   или эквивалентный `POST /_matrix/client/v3/login`
+   - `POST /_matrix/client/v3/login`
 3. Если пароль верный, сервер отправляет код на email этого аккаунта и возвращает `sid`.
 4. Клиент показывает экран ввода кода.
 5. После ввода кода клиент вызывает:
-   - `POST /_matrix/client/v3/login/email/submitToken`
+   - `POST /_matrix/client/v3/login`
 6. Если код верный, сервер возвращает:
    - `user_id`
    - `access_token`
@@ -39,6 +38,50 @@
    - `home_server`
    - `refresh_token` если есть
 7. Только после этого пользователь считается вошедшим.
+
+Первый запрос:
+
+```json
+{
+  "client_secret": "random-client-secret",
+  "login": "alice_or_email",
+  "password": "secret-password",
+  "send_attempt": 1
+}
+```
+
+Ответ первого запроса:
+
+```json
+{
+  "sid": "session-id",
+  "email": "alice@example.com"
+}
+```
+
+Второй запрос:
+
+```json
+{
+  "client_secret": "random-client-secret",
+  "sid": "session-id",
+  "token": "123456",
+  "device_id": "optional-device-id",
+  "initial_device_display_name": "optional device name"
+}
+```
+
+Ответ второго запроса:
+
+```json
+{
+  "user_id": "@alice:server",
+  "access_token": "token",
+  "device_id": "DEVICEID",
+  "home_server": "server",
+  "refresh_token": null
+}
+```
 
 ## Контракт, который клиент должен хранить
 
@@ -115,54 +158,6 @@ Response:
   "home_server": "server",
   "refresh_token": null,
   "expires_in": null
-}
-```
-
-### Login requestToken
-
-Request:
-
-```json
-{
-  "client_secret": "random-client-secret",
-  "login": "alice_or_email",
-  "password": "secret-password",
-  "send_attempt": 1
-}
-```
-
-Response:
-
-```json
-{
-  "sid": "session-id",
-  "email": "alice@example.com"
-}
-```
-
-### Login submitToken
-
-Request:
-
-```json
-{
-  "client_secret": "random-client-secret",
-  "sid": "session-id",
-  "token": "123456",
-  "device_id": "optional-device-id",
-  "initial_device_display_name": "optional device name"
-}
-```
-
-Response:
-
-```json
-{
-  "user_id": "@alice:server",
-  "access_token": "token",
-  "device_id": "DEVICEID",
-  "home_server": "server",
-  "refresh_token": null
 }
 ```
 

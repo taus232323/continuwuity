@@ -44,14 +44,6 @@ pub fn build(router: Router<State>, server: &Server) -> Router<State> {
 			"/_matrix/client/v3/login",
 			get(client::get_login_types_route).post(client::login_route),
 		)
-		.route(
-			"/_matrix/client/v3/login/email/requestToken",
-			post(client::login_email_request_token_route),
-		)
-		.route(
-			"/_matrix/client/v3/login/email/submitToken",
-			post(client::login_email_submit_token_route),
-		)
 		.ruma_route(&client::login_token_route)
 		.ruma_route(&client::whoami_route)
 		.ruma_route(&client::logout_route)
