@@ -244,8 +244,9 @@ pub(crate) async fn register_route(
 		.consume_valid_session(&sid, &client_secret)
 		.await
 		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
+	let email = email.to_string();
 
-	if email.to_string() != submitted_email {
+	if email != submitted_email {
 		return Err!(Request(ThreepidAuthFailed(
 			"Verification email does not match the supplied address"
 		)));
@@ -258,7 +259,7 @@ pub(crate) async fn register_route(
 	// visible to the user.
 	services
 		.threepid
-		.associate_localpart_email(user_id.localpart(), email.as_ref())
+		.associate_localpart_email(user_id.localpart(), email.as_str())
 		.await?;
 
 	let mut displayname = user_id.localpart().to_owned();
