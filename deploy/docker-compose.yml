@@ -1,9 +1,7 @@
 services:
   continuwuity:
-    image: arcana_homeserver:local
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
+    image: forgejo.ellis.link/continuwuation/continuwuity:latest
+    pull_policy: always
     container_name: arcana_homeserver
     command: /sbin/conduwuit --config /etc/continuwuity/continuwuity.toml
     restart: unless-stopped

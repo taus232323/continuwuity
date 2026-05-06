@@ -7,7 +7,7 @@ MATRIX_COMPOSE := docker compose -p $(MATRIX_COMPOSE_PROJECT) -f $(MATRIX_COMPOS
 help:
 	@printf "%s\n" \
 		"Available targets:" \
-		"  make update  - pull latest images and restart containers" \
+		"  make update  - pull latest code, image, and restart containers" \
 		"  make up      - start or update containers in background" \
 		"  make down    - stop and remove containers" \
 		"  make restart - restart the deployment" \
@@ -17,17 +17,18 @@ help:
 
 update:
 	git pull
-	$(MATRIX_COMPOSE) up -d --build
+	$(MATRIX_COMPOSE) pull
+	$(MATRIX_COMPOSE) up -d
 	$(MATRIX_COMPOSE) logs -f
 
 up:
-	$(MATRIX_COMPOSE) up -d --build
+	$(MATRIX_COMPOSE) up -d
 
-matrix-down:
+down:
 	$(MATRIX_COMPOSE) down
 
 restart:
-	$(MATRIX_COMPOSE) up -d --build
+	$(MATRIX_COMPOSE) up -d
 	$(MATRIX_COMPOSE) logs -f
 
 logs:
