@@ -167,6 +167,7 @@ pub(crate) async fn submit_registration_token_via_email_route(
 /// # `POST /_matrix/client/v3/register`
 ///
 /// Create an account after the email address has already been verified.
+#[axum::debug_handler]
 #[tracing::instrument(skip_all, fields(%client), name = "register", level = "info")]
 pub(crate) async fn register_route(
 	State(services): State<crate::State>,
@@ -197,15 +198,14 @@ pub(crate) async fn register_route(
 	let initial_device_display_name = body.initial_device_display_name.clone();
 	let inhibit_login = body.inhibit_login;
 
-	let Ok(email) = Address::try_from(body.email.clone()) else {
+	let submitted_email = body.email.clone();
+	let Ok(email_address) = Address::try_from(submitted_email.as_str()) else {
 		return Err!(Request(InvalidParam("Invalid email address.")));
 	};
 
-	let expected_email = email.clone();
-
 	if services
 		.threepid
-		.get_localpart_for_email(&expected_email)
+		.get_localpart_for_email(&email_address)
 		.await
 		.is_some()
 	{
@@ -214,8 +214,9 @@ pub(crate) async fn register_route(
 
 	let emergency_mode_enabled = services.config.emergency_password.is_some();
 	let supplied_username = username.or_else(|| {
-		if !email.user().is_empty() {
-			Some(email.user().to_owned())
+		let localpart = email_address.user();
+		if !localpart.is_empty() {
+			Some(localpart.to_owned())
 		} else {
 			None
 		}
@@ -239,7 +240,7 @@ pub(crate) async fn register_route(
 		.await
 		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
 
-	if email != expected_email {
+	if email.as_ref() != submitted_email {
 		return Err!(Request(ThreepidAuthFailed(
 			"Verification email does not match the supplied address"
 		)));
