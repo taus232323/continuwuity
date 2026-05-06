@@ -6,7 +6,7 @@ use conduwuit::{Err, Result, debug_info, err, utils};
 use conduwuit_core::debug_warn;
 use conduwuit_service::Services;
 use lettre::{Address, message::Mailbox};
-use ruma::{OwnedDeviceId, OwnedUserId, UserId};
+use ruma::{OwnedClientSecret, OwnedDeviceId, OwnedSessionId, OwnedUserId, UserId};
 use ruma::push::Ruleset;
 use serde::{Deserialize, Serialize};
 use service::mailer::messages;
@@ -18,7 +18,7 @@ const RANDOM_USER_ID_LENGTH: usize = 10;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct RegistrationEmailRequestTokenRequest {
-	pub client_secret: String,
+	pub client_secret: OwnedClientSecret,
 	pub email: String,
 	pub send_attempt: usize,
 }
@@ -30,8 +30,8 @@ pub(crate) struct RegistrationEmailRequestTokenResponse {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct RegistrationEmailSubmitTokenRequest {
-	pub client_secret: String,
-	pub sid: String,
+	pub client_secret: OwnedClientSecret,
+	pub sid: OwnedSessionId,
 	pub token: String,
 }
 
@@ -43,8 +43,8 @@ pub(crate) struct RegistrationEmailSubmitTokenResponse {
 #[derive(Debug, Deserialize)]
 pub(crate) struct RegisterRequest {
 	pub email: String,
-	pub client_secret: String,
-	pub sid: String,
+	pub client_secret: OwnedClientSecret,
+	pub sid: OwnedSessionId,
 	pub password: String,
 	pub username: Option<String>,
 	pub device_id: Option<OwnedDeviceId>,

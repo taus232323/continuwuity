@@ -12,13 +12,14 @@ use conduwuit_service::Services;
 use futures::StreamExt;
 use lettre::{Address, message::Mailbox};
 use ruma::{
-	OwnedDeviceId, OwnedUserId, UserId,
+	OwnedClientSecret, OwnedDeviceId, OwnedSessionId, OwnedUserId, UserId,
 	api::client::{
 		error::ErrorKind,
 		session::{get_login_token, logout, logout_all},
 	},
 };
 use serde::{Deserialize, Serialize};
+use service::mailer::messages;
 use service::uiaa::Identity;
 use serde_json::json;
 
@@ -27,11 +28,11 @@ use crate::Ruma;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct LoginEmailRequestTokenRequest {
-	pub client_secret: String,
+	pub client_secret: OwnedClientSecret,
 	pub login: Option<String>,
 	pub password: Option<String>,
 	pub send_attempt: Option<usize>,
-	pub sid: Option<String>,
+	pub sid: Option<OwnedSessionId>,
 	pub token: Option<String>,
 	pub device_id: Option<OwnedDeviceId>,
 	pub initial_device_display_name: Option<String>,
@@ -45,8 +46,8 @@ pub(crate) struct LoginEmailRequestTokenResponse {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct LoginEmailSubmitTokenRequest {
-	pub client_secret: String,
-	pub sid: String,
+	pub client_secret: OwnedClientSecret,
+	pub sid: OwnedSessionId,
 	pub token: String,
 	pub device_id: Option<OwnedDeviceId>,
 	pub initial_device_display_name: Option<String>,
@@ -413,7 +414,7 @@ pub(crate) async fn finish_login_after_email_code(
 		user_id,
 		access_token: token,
 		device_id: Some(device_id),
-		home_server: Some(services.config.server_name.clone()),
+		home_server: Some(services.config.server_name.to_string()),
 		refresh_token: None,
 	})
 }
