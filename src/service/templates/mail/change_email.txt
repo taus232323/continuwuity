@@ -1,13 +1,13 @@
 {% extends "_base.txt" %}
 
 {% block content -%}
-Hello!
+Здравствуйте!
 {% if let Some(user_id) = user_id -%}
-Somebody, probably you, tried to associate this email address with the Matrix account {{ user_id }}.
+Кто-то, возможно вы, попытался привязать этот адрес электронной почты к учётной записи Matrix {{ user_id }}.
 {%- else -%}
-Somebody, probably you, tried to associate this email address with a Matrix account on {{ server_name }}.
+Кто-то, возможно вы, попытался привязать этот адрес электронной почты к учётной записи Matrix.
 {%- endif %}
-If that was you, and this is your email address, click this link to proceed:
+Если это были вы и это ваш адрес, перейдите по ссылке:
     {{ verification_link }}
-Otherwise, you can ignore this email. The above link will expire in one hour.
+Если нет, просто проигнорируйте это письмо. Ссылка будет действовать один час.
 {%- endblock %}

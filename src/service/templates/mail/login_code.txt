@@ -1,10 +1,10 @@
 {% extends "_base.txt" %}
 
 {% block content -%}
-Hello {{ user_id }},
+Здравствуйте, {{ user_id }},
 
-Somebody, probably you, tried to sign in to your Matrix account on {{ server_name }}.
-Use this verification code to finish signing in:
+Кто-то, возможно вы, попытался войти в вашу учётную запись Matrix.
+Используйте этот код, чтобы завершить вход:
     {{ verification_code }}
-If you are not trying to sign in, you can ignore this email. The code will expire in one hour.
+Если это были не вы, просто проигнорируйте это письмо. Код будет действовать один час.
 {%- endblock %}

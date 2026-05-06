@@ -122,7 +122,6 @@ pub(crate) async fn request_registration_token_via_email_route(
 		.send_validation_code_email(
 			Mailbox::new(None, email),
 			|verification_code| messages::NewAccountCode {
-				server_name: services.config.server_name.as_ref(),
 				verification_code: &verification_code,
 			},
 			&body.client_secret,

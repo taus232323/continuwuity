@@ -323,7 +323,6 @@ pub(crate) async fn login_route(
 		.send_validation_code_email(
 			Mailbox::new(None, email.clone()),
 			|verification_code| messages::LoginCode {
-				server_name: services.config.server_name.as_ref(),
 				user_id: &user_id,
 				verification_code: &verification_code,
 			},

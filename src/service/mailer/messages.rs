@@ -8,47 +8,43 @@ pub trait MessageTemplate: Template {
 #[derive(Template)]
 #[template(path = "mail/change_email.txt")]
 pub struct ChangeEmail<'a> {
-	pub server_name: &'a str,
 	pub user_id: Option<&'a UserId>,
 	pub verification_link: String,
 }
 
 impl MessageTemplate for ChangeEmail<'_> {
-	fn subject(&self) -> String { "Verify your email address".to_owned() }
+	fn subject(&self) -> String { "Подтверждение адреса электронной почты".to_owned() }
 }
 
 #[derive(Template)]
 #[template(path = "mail/new_account.txt")]
 pub struct NewAccount<'a> {
-	pub server_name: &'a str,
-	pub verification_link: String,
+	pub verification_code: &'a str,
 }
 
 impl MessageTemplate for NewAccount<'_> {
-	fn subject(&self) -> String { "Create your new Matrix account".to_owned() }
+	fn subject(&self) -> String { "Подтверждение регистрации".to_owned() }
 }
 
 #[derive(Template)]
 #[template(path = "mail/new_account_code.txt")]
 pub struct NewAccountCode<'a> {
-	pub server_name: &'a str,
 	pub verification_code: &'a str,
 }
 
 impl MessageTemplate for NewAccountCode<'_> {
-	fn subject(&self) -> String { "Verify your email address".to_owned() }
+	fn subject(&self) -> String { "Подтверждение регистрации".to_owned() }
 }
 
 #[derive(Template)]
 #[template(path = "mail/login_code.txt")]
 pub struct LoginCode<'a> {
-	pub server_name: &'a str,
 	pub user_id: &'a UserId,
 	pub verification_code: &'a str,
 }
 
 impl MessageTemplate for LoginCode<'_> {
-	fn subject(&self) -> String { format!("Sign-in code for {}", &self.user_id) }
+	fn subject(&self) -> String { format!("Код входа для {}", &self.user_id) }
 }
 
 #[derive(Template)]
@@ -60,7 +56,7 @@ pub struct PasswordReset<'a> {
 }
 
 impl MessageTemplate for PasswordReset<'_> {
-	fn subject(&self) -> String { format!("Password reset request for {}", &self.user_id) }
+	fn subject(&self) -> String { format!("Запрос на сброс пароля для {}", &self.user_id) }
 }
 
 #[derive(Template)]

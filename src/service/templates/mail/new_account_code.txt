@@ -1,10 +1,10 @@
 {% extends "_base.txt" %}
 
 {% block content -%}
-Hello!
+Здравствуйте!
 
-Somebody, probably you, tried to create a Matrix account on {{ server_name }} using this email address.
-Use this verification code to continue creating your account:
+Кто-то, возможно вы, попытался создать учётную запись Arkana с этим адресом электронной почты.
+Введите этот код, чтобы продолжить регистрацию:
     {{ verification_code }}
-If you are not trying to create an account, you can ignore this email. The code will expire in one hour.
+Если это были не вы, просто проигнорируйте это письмо. Код действителен один час.
 {%- endblock %}
