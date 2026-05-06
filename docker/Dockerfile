@@ -189,7 +189,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
             jq -r ".target_directory"))
     mkdir /out/sbin
     PACKAGE=conduwuit
-    xx-cargo build --locked --profile ${RUST_PROFILE} \
+    xx-cargo build --profile ${RUST_PROFILE} \
         --no-default-features --features ${CARGO_FEATURES} \
         -p $PACKAGE;
     BINARIES=($(cargo metadata --no-deps --format-version 1 | \
