@@ -222,7 +222,7 @@ pub(crate) async fn handle_login(
 	} else if let Ok(email) = Address::try_from(login.to_owned()) {
 		services
 			.threepid
-			.get_localpart_for_email(&email)
+			.get_localpart_for_email(<Address as AsRef<str>>::as_ref(&email))
 			.await
 			.ok_or_else(|| err!(Request(Forbidden("Invalid identifier or password"))))?
 	} else {
@@ -377,7 +377,11 @@ pub(crate) async fn finish_login_after_email_code(
 		.await
 		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
 
-	let Some(localpart) = services.threepid.get_localpart_for_email(&email).await else {
+	let Some(localpart) = services
+		.threepid
+		.get_localpart_for_email(<Address as AsRef<str>>::as_ref(&email))
+		.await
+	else {
 		return Err!(Request(Forbidden("This account is not associated with a user.")));
 	};
 

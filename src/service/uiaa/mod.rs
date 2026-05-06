@@ -321,7 +321,11 @@ impl Service {
 				{
 					| Ok(email) => {
 						if let Some(localpart) =
-							self.services.threepid.get_localpart_for_email(&email).await
+							self
+								.services
+								.threepid
+								.get_localpart_for_email(<Address as AsRef<str>>::as_ref(&email))
+								.await
 						{
 							identity.try_set_localpart(localpart)?;
 						}
@@ -349,7 +353,11 @@ impl Service {
 						};
 
 						if let Some(localpart) =
-							self.services.threepid.get_localpart_for_email(&email).await
+							self
+								.services
+								.threepid
+								.get_localpart_for_email(<Address as AsRef<str>>::as_ref(&email))
+								.await
 						{
 							identity.try_set_email(email)?;
 

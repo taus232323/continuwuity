@@ -63,7 +63,7 @@ pub(crate) async fn request_3pid_management_token_via_email_route(
 
 	if services
 		.threepid
-		.get_localpart_for_email(&email)
+		.get_localpart_for_email(<Address as AsRef<str>>::as_ref(&email))
 		.await
 		.is_some()
 	{

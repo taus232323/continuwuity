@@ -116,7 +116,7 @@ pub(crate) async fn request_registration_token_via_email_route(
 
 	if services
 		.threepid
-		.get_localpart_for_email(&email)
+		.get_localpart_for_email(<Address as AsRef<str>>::as_ref(&email))
 		.await
 		.is_some()
 	{
@@ -197,14 +197,27 @@ pub(crate) async fn register_route(
 	let initial_device_display_name = body.initial_device_display_name.clone();
 	let inhibit_login = body.inhibit_login;
 
-	let submitted_email = body.email.clone();
-	let Ok(email_address) = Address::try_from(submitted_email.clone()) else {
-		return Err!(Request(InvalidParam("Invalid email address.")));
+	let (submitted_email, supplied_username) = {
+		let submitted_email = body.email.clone();
+		let Ok(email_address) = Address::try_from(submitted_email.clone()) else {
+			return Err!(Request(InvalidParam("Invalid email address.")));
+		};
+
+		let supplied_username = username.or_else(|| {
+			let localpart = email_address.user();
+			if !localpart.is_empty() {
+				Some(localpart.to_owned())
+			} else {
+				None
+			}
+		});
+
+		(submitted_email, supplied_username)
 	};
 
 	if services
 		.threepid
-		.get_localpart_for_email(&email_address)
+		.get_localpart_for_email(submitted_email.as_str())
 		.await
 		.is_some()
 	{
@@ -212,14 +225,6 @@ pub(crate) async fn register_route(
 	}
 
 	let emergency_mode_enabled = services.config.emergency_password.is_some();
-	let supplied_username = username.or_else(|| {
-		let localpart = email_address.user();
-		if !localpart.is_empty() {
-			Some(localpart.to_owned())
-		} else {
-			None
-		}
-	});
 
 	let user_id = determine_registration_user_id(
 		&services,
@@ -239,7 +244,7 @@ pub(crate) async fn register_route(
 		.await
 		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
 
-	if email.as_ref() != submitted_email {
+	if email.to_string() != submitted_email {
 		return Err!(Request(ThreepidAuthFailed(
 			"Verification email does not match the supplied address"
 		)));

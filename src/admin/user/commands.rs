@@ -1127,7 +1127,12 @@ pub(super) async fn get_user_by_email(&self, email: String) -> Result {
 		return Err!("Invalid email address.");
 	};
 
-	match self.services.threepid.get_localpart_for_email(&email).await {
+	match self
+		.services
+		.threepid
+		.get_localpart_for_email(<Address as AsRef<str>>::as_ref(&email))
+		.await
+	{
 		| Some(localpart) => {
 			let user_id = OwnedUserId::parse(format!(
 				"@{localpart}:{}",

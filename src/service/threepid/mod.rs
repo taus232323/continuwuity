@@ -290,7 +290,7 @@ impl Service {
 		localpart: &str,
 		email: &Address,
 	) -> Result<()> {
-		match self.get_localpart_for_email(email).await {
+		match self.get_localpart_for_email(email.as_ref()).await {
 			| Some(existing_localpart) if existing_localpart != localpart => {
 				// Another account is already using the supplied email.
 
@@ -343,10 +343,10 @@ impl Service {
 	}
 
 	/// Get the localpart associated with an email, if one exists.
-	pub async fn get_localpart_for_email(&self, email: &Address) -> Option<String> {
+	pub async fn get_localpart_for_email(&self, email: &str) -> Option<String> {
 		self.db
 			.email_localpart
-			.get(<Address as AsRef<str>>::as_ref(email))
+			.get(email)
 			.await
 			.deserialized()
 			.ok()

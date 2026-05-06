@@ -208,7 +208,11 @@ pub(crate) async fn request_password_change_token_via_email_route(
 		return Err!(Request(InvalidParam("Invalid email address.")));
 	};
 
-	let Some(localpart) = services.threepid.get_localpart_for_email(&email).await else {
+	let Some(localpart) = services
+		.threepid
+		.get_localpart_for_email(<Address as AsRef<str>>::as_ref(&email))
+		.await
+	else {
 		return Err!(Request(ThreepidNotFound(
 			"No account is associated with this email address"
 		)));
