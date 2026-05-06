@@ -164,6 +164,26 @@ pub(crate) async fn submit_registration_token_via_email_route(
 	}))
 }
 
+fn parse_registration_email(
+	submitted_email: String,
+	username: Option<String>,
+) -> Result<(String, Option<String>)> {
+	let Ok(email_address) = Address::try_from(submitted_email.clone()) else {
+		return Err!(Request(InvalidParam("Invalid email address.")));
+	};
+
+	let supplied_username = username.or_else(|| {
+		let localpart = email_address.user();
+		if !localpart.is_empty() {
+			Some(localpart.to_owned())
+		} else {
+			None
+		}
+	});
+
+	Ok((submitted_email, supplied_username))
+}
+
 /// # `POST /_matrix/client/v3/register`
 ///
 /// Create an account after the email address has already been verified.
@@ -197,24 +217,7 @@ pub(crate) async fn register_route(
 	let device_id = body.device_id.clone();
 	let initial_device_display_name = body.initial_device_display_name.clone();
 	let inhibit_login = body.inhibit_login;
-
-	let (submitted_email, supplied_username) = {
-		let submitted_email = body.email.clone();
-		let Ok(email_address) = Address::try_from(submitted_email.clone()) else {
-			return Err!(Request(InvalidParam("Invalid email address.")));
-		};
-
-		let supplied_username = username.or_else(|| {
-			let localpart = email_address.user();
-			if !localpart.is_empty() {
-				Some(localpart.to_owned())
-			} else {
-				None
-			}
-		});
-
-		(submitted_email, supplied_username)
-	};
+	let (submitted_email, supplied_username) = parse_registration_email(body.email.clone(), username)?;
 
 	if services
 		.threepid
