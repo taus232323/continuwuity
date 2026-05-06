@@ -325,7 +325,7 @@ pub(crate) async fn login_route(
 			Mailbox::new(None, email.clone()),
 			|verification_code| messages::LoginCode {
 				user_id: &user_id,
-				verification_code: &verification_code,
+				verification_code,
 			},
 			&body.client_secret,
 			send_attempt,

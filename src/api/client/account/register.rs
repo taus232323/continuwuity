@@ -124,7 +124,7 @@ pub(crate) async fn request_registration_token_via_email_route(
 		.send_validation_code_email(
 			Mailbox::new(None, email),
 			|verification_code| messages::NewAccountCode {
-				verification_code: &verification_code,
+				verification_code,
 			},
 			&body.client_secret,
 			body.send_attempt,
@@ -150,7 +150,7 @@ pub(crate) async fn submit_registration_token_via_email_route(
 		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
 
 	Ok(Json(RegistrationEmailSubmitTokenResponse {
-		sid: body.sid,
+		sid: body.sid.to_string(),
 	}))
 }
 

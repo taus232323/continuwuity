@@ -18,21 +18,21 @@ impl MessageTemplate for ChangeEmail<'_> {
 
 #[derive(Template)]
 #[template(path = "mail/new_account.txt")]
-pub struct NewAccount<'a> {
-	pub verification_code: &'a str,
+pub struct NewAccount {
+	pub verification_code: String,
 }
 
-impl MessageTemplate for NewAccount<'_> {
+impl MessageTemplate for NewAccount {
 	fn subject(&self) -> String { "Подтверждение регистрации".to_owned() }
 }
 
 #[derive(Template)]
 #[template(path = "mail/new_account_code.txt")]
-pub struct NewAccountCode<'a> {
-	pub verification_code: &'a str,
+pub struct NewAccountCode {
+	pub verification_code: String,
 }
 
-impl MessageTemplate for NewAccountCode<'_> {
+impl MessageTemplate for NewAccountCode {
 	fn subject(&self) -> String { "Подтверждение регистрации".to_owned() }
 }
 
@@ -40,7 +40,7 @@ impl MessageTemplate for NewAccountCode<'_> {
 #[template(path = "mail/login_code.txt")]
 pub struct LoginCode<'a> {
 	pub user_id: &'a UserId,
-	pub verification_code: &'a str,
+	pub verification_code: String,
 }
 
 impl MessageTemplate for LoginCode<'_> {

@@ -28,7 +28,7 @@ use ruma::{
 };
 use service::{mailer::messages, uiaa::Identity};
 
-use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH, join_room_by_id_helper};
+use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
 use crate::Ruma;
 
 pub(crate) mod register;
