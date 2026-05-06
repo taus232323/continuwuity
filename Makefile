@@ -16,20 +16,19 @@ help:
 		"  make config  - validate rendered compose config"
 
 update:
-	$(MATRIX_COMPOSE) pull
+	git pull
 	$(MATRIX_COMPOSE) down
 	$(MATRIX_COMPOSE) up -d
 	$(MATRIX_COMPOSE) logs -f
 
 up:
-	$(MATRIX_COMPOSE) up -d
+	$(MATRIX_COMPOSE) up -d --build
 
 matrix-down:
 	$(MATRIX_COMPOSE) down
 
 restart:
-	$(MATRIX_COMPOSE) down
-	$(MATRIX_COMPOSE) up -d
+	$(MATRIX_COMPOSE) up -d --build
 	$(MATRIX_COMPOSE) logs -f
 
 logs:
