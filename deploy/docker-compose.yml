@@ -1,7 +1,7 @@
 services:
   continuwuity:
     image: ghcr.io/continuwuity/continuwuity:latest
-    container_name: celeste_matrix_homeserver
+    container_name: arcana_homeserver
     command: /sbin/conduwuit --config /etc/continuwuity/continuwuity.toml
     restart: unless-stopped
     ports:
@@ -15,7 +15,7 @@ services:
 
   matrix-chat:
     image: vectorim/element-web:latest
-    container_name: celeste_matrix_chat
+    container_name: arcana_chat
     restart: unless-stopped
     ports:
       - "127.0.0.1:3300:80"
@@ -24,7 +24,7 @@ services:
 
   matrix-wellknown:
     image: nginx:alpine
-    container_name: celeste_matrix_wellknown
+    container_name: arcana_wellknown
     restart: unless-stopped
     ports:
       - "127.0.0.1:3310:80"
