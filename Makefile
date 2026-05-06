@@ -17,6 +17,9 @@ help:
 
 pull:
 	$(MATRIX_COMPOSE) pull
+	$(MATRIX_COMPOSE) down
+	$(MATRIX_COMPOSE) up -d
+	$(MATRIX_COMPOSE) logs -f
 
 up:
 	$(MATRIX_COMPOSE) up -d
@@ -27,9 +30,10 @@ matrix-down:
 restart:
 	$(MATRIX_COMPOSE) down
 	$(MATRIX_COMPOSE) up -d
+	$(MATRIX_COMPOSE) logs -f
 
 logs:
-	$(MATRIX_COMPOSE) logs -f continuwuity
+	$(MATRIX_COMPOSE) logs -f
 
 ps:
 	$(MATRIX_COMPOSE) ps
