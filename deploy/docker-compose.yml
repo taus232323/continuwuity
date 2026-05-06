@@ -1,6 +1,6 @@
 services:
   continuwuity:
-    image: forgejo.ellis.link/continuwuation/continuwuity:latest
+    image: forgejo.ellis.link/continuwuation/continuwuity:main
     pull_policy: always
     container_name: arcana_homeserver
     command: /sbin/conduwuit --config /etc/continuwuity/continuwuity.toml
