@@ -3,7 +3,6 @@ use std::fmt::Write;
 use axum::{Json, extract::State};
 use axum_client_ip::ClientIp;
 use conduwuit::{Err, Result, debug_info, err, utils};
-use conduwuit_core::debug_warn;
 use conduwuit_service::Services;
 use lettre::{Address, message::Mailbox};
 use ruma::{OwnedClientSecret, OwnedDeviceId, OwnedSessionId, OwnedUserId, UserId};
@@ -192,6 +191,11 @@ pub(crate) async fn register_route(
 		.sid
 		.parse::<OwnedSessionId>()
 		.map_err(|_| err!(Request(InvalidParam("Invalid sid"))))?;
+	let password = body.password.clone();
+	let username = body.username.clone();
+	let device_id = body.device_id.clone();
+	let initial_device_display_name = body.initial_device_display_name.clone();
+	let inhibit_login = body.inhibit_login;
 
 	let Ok(email) = Address::try_from(body.email.clone()) else {
 		return Err!(Request(InvalidParam("Invalid email address.")));
@@ -209,7 +213,7 @@ pub(crate) async fn register_route(
 	}
 
 	let emergency_mode_enabled = services.config.emergency_password.is_some();
-	let supplied_username = body.username.clone().or_else(|| {
+	let supplied_username = username.or_else(|| {
 		if !email.user().is_empty() {
 			Some(email.user().to_owned())
 		} else {
@@ -241,7 +245,7 @@ pub(crate) async fn register_route(
 		)));
 	}
 
-	services.users.create(&user_id, Some(body.password.as_str()), None).await?;
+	services.users.create(&user_id, Some(password.as_str()), None).await?;
 
 	// Associate the verified email with the new account. If another account sniped it in
 	// the small window between verification and creation, keep the account creation failure
@@ -271,12 +275,8 @@ pub(crate) async fn register_route(
 		)
 		.await?;
 
-	let no_device = body.inhibit_login;
-	let (token, device) = if !no_device {
-		let device_id = body
-			.device_id
-			.clone()
-			.unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into());
+	let (token, device) = if !inhibit_login {
+		let device_id = device_id.unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into());
 		let new_token = utils::random_string(TOKEN_LENGTH);
 
 		services
@@ -285,7 +285,7 @@ pub(crate) async fn register_route(
 				&user_id,
 				&device_id,
 				&new_token,
-				body.initial_device_display_name.clone(),
+				initial_device_display_name,
 				Some(client.to_string()),
 			)
 			.await?;
