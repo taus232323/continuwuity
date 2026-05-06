@@ -167,7 +167,6 @@ pub(crate) async fn submit_registration_token_via_email_route(
 /// # `POST /_matrix/client/v3/register`
 ///
 /// Create an account after the email address has already been verified.
-#[axum::debug_handler]
 #[tracing::instrument(skip_all, fields(%client), name = "register", level = "info")]
 pub(crate) async fn register_route(
 	State(services): State<crate::State>,
@@ -199,7 +198,7 @@ pub(crate) async fn register_route(
 	let inhibit_login = body.inhibit_login;
 
 	let submitted_email = body.email.clone();
-	let Ok(email_address) = Address::try_from(submitted_email.as_str()) else {
+	let Ok(email_address) = Address::try_from(submitted_email.clone()) else {
 		return Err!(Request(InvalidParam("Invalid email address.")));
 	};
 
