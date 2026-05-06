@@ -18,7 +18,7 @@ const RANDOM_USER_ID_LENGTH: usize = 10;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct RegistrationEmailRequestTokenRequest {
-	pub client_secret: OwnedClientSecret,
+	pub client_secret: String,
 	pub email: String,
 	pub send_attempt: usize,
 }
@@ -30,8 +30,8 @@ pub(crate) struct RegistrationEmailRequestTokenResponse {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct RegistrationEmailSubmitTokenRequest {
-	pub client_secret: OwnedClientSecret,
-	pub sid: OwnedSessionId,
+	pub client_secret: String,
+	pub sid: String,
 	pub token: String,
 }
 
@@ -43,8 +43,8 @@ pub(crate) struct RegistrationEmailSubmitTokenResponse {
 #[derive(Debug, Deserialize)]
 pub(crate) struct RegisterRequest {
 	pub email: String,
-	pub client_secret: OwnedClientSecret,
-	pub sid: OwnedSessionId,
+	pub client_secret: String,
+	pub sid: String,
 	pub password: String,
 	pub username: Option<String>,
 	pub device_id: Option<OwnedDeviceId>,
@@ -106,6 +106,11 @@ pub(crate) async fn request_registration_token_via_email_route(
 		return Err!(Request(Forbidden("Email verification is unavailable.")));
 	}
 
+	let client_secret = body
+		.client_secret
+		.parse::<OwnedClientSecret>()
+		.map_err(|_| err!(Request(InvalidParam("Invalid client_secret"))))?;
+
 	let Ok(email) = Address::try_from(body.email.clone()) else {
 		return Err!(Request(InvalidParam("Invalid email address.")));
 	};
@@ -126,7 +131,7 @@ pub(crate) async fn request_registration_token_via_email_route(
 			|verification_code| messages::NewAccountCode {
 				verification_code,
 			},
-			&body.client_secret,
+			&client_secret,
 			body.send_attempt,
 		)
 		.await?;
@@ -145,12 +150,18 @@ pub(crate) async fn submit_registration_token_via_email_route(
 ) -> Result<Json<RegistrationEmailSubmitTokenResponse>> {
 	services
 		.threepid
-		.try_validate_session(&body.sid, &body.token)
+		.try_validate_session(
+			&body
+				.sid
+				.parse::<OwnedSessionId>()
+				.map_err(|_| err!(Request(InvalidParam("Invalid sid"))))?,
+			&body.token,
+		)
 		.await
 		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
 
 	Ok(Json(RegistrationEmailSubmitTokenResponse {
-		sid: body.sid.to_string(),
+		sid: body.sid,
 	}))
 }
 
@@ -172,6 +183,15 @@ pub(crate) async fn register_route(
 	if !services.threepid.email_requirement().may_change() {
 		return Err!(Request(Forbidden("Email verification is unavailable.")));
 	}
+
+	let client_secret = body
+		.client_secret
+		.parse::<OwnedClientSecret>()
+		.map_err(|_| err!(Request(InvalidParam("Invalid client_secret"))))?;
+	let sid = body
+		.sid
+		.parse::<OwnedSessionId>()
+		.map_err(|_| err!(Request(InvalidParam("Invalid sid"))))?;
 
 	let Ok(email) = Address::try_from(body.email.clone()) else {
 		return Err!(Request(InvalidParam("Invalid email address.")));
@@ -211,7 +231,7 @@ pub(crate) async fn register_route(
 
 	let email = services
 		.threepid
-		.consume_valid_session(&body.sid, &body.client_secret)
+		.consume_valid_session(&sid, &client_secret)
 		.await
 		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
 

@@ -28,11 +28,11 @@ use crate::Ruma;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct LoginEmailRequestTokenRequest {
-	pub client_secret: OwnedClientSecret,
+	pub client_secret: String,
 	pub login: Option<String>,
 	pub password: Option<String>,
 	pub send_attempt: Option<usize>,
-	pub sid: Option<OwnedSessionId>,
+	pub sid: Option<String>,
 	pub token: Option<String>,
 	pub device_id: Option<OwnedDeviceId>,
 	pub initial_device_display_name: Option<String>,
@@ -46,8 +46,8 @@ pub(crate) struct LoginEmailRequestTokenResponse {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct LoginEmailSubmitTokenRequest {
-	pub client_secret: OwnedClientSecret,
-	pub sid: OwnedSessionId,
+	pub client_secret: String,
+	pub sid: String,
 	pub token: String,
 	pub device_id: Option<OwnedDeviceId>,
 	pub initial_device_display_name: Option<String>,
@@ -278,12 +278,19 @@ pub(crate) async fn login_route(
 	Json(body): Json<LoginEmailRequestTokenRequest>,
 ) -> Result<Json<LoginFlowResponse>> {
 	if let (Some(sid), Some(token)) = (body.sid.as_ref(), body.token.as_ref()) {
+		let sid = sid
+			.parse::<OwnedSessionId>()
+			.map_err(|_| err!(Request(InvalidParam("Invalid sid"))))?;
+		let client_secret = body
+			.client_secret
+			.parse::<OwnedClientSecret>()
+			.map_err(|_| err!(Request(InvalidParam("Invalid client_secret"))))?;
 		let response = finish_login_after_email_code(
 			&services,
 			client.to_string(),
 			LoginEmailSubmitTokenRequest {
-				client_secret: body.client_secret,
-				sid: sid.clone(),
+				client_secret: client_secret.to_string(),
+				sid: sid.to_string(),
 				token: token.clone(),
 				device_id: body.device_id,
 				initial_device_display_name: body.initial_device_display_name,
@@ -327,7 +334,10 @@ pub(crate) async fn login_route(
 				user_id: &user_id,
 				verification_code,
 			},
-			&body.client_secret,
+			&body
+				.client_secret
+				.parse::<OwnedClientSecret>()
+				.map_err(|_| err!(Request(InvalidParam("Invalid client_secret"))))?,
 			send_attempt,
 		)
 		.await?;
@@ -346,15 +356,24 @@ pub(crate) async fn finish_login_after_email_code(
 	client: String,
 	body: LoginEmailSubmitTokenRequest,
 ) -> Result<LoginResponse> {
+	let sid = body
+		.sid
+		.parse::<OwnedSessionId>()
+		.map_err(|_| err!(Request(InvalidParam("Invalid sid"))))?;
+	let client_secret = body
+		.client_secret
+		.parse::<OwnedClientSecret>()
+		.map_err(|_| err!(Request(InvalidParam("Invalid client_secret"))))?;
+
 	services
 		.threepid
-		.try_validate_session(&body.sid, &body.token)
+		.try_validate_session(&sid, &body.token)
 		.await
 		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
 
 	let email = services
 		.threepid
-		.consume_valid_session(&body.sid, &body.client_secret)
+		.consume_valid_session(&sid, &client_secret)
 		.await
 		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
 
