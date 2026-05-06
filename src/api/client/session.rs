@@ -10,7 +10,7 @@ use conduwuit::{
 use conduwuit_core::{debug_error, debug_warn};
 use conduwuit_service::Services;
 use futures::StreamExt;
-use lettre::Address;
+use lettre::{Address, message::Mailbox};
 use ruma::{
 	OwnedDeviceId, OwnedUserId, UserId,
 	api::client::{

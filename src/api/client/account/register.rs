@@ -4,8 +4,10 @@ use axum::{Json, extract::State};
 use axum_client_ip::ClientIp;
 use conduwuit::{Err, Result, debug_info, err, utils};
 use conduwuit_core::debug_warn;
+use conduwuit_service::Services;
 use lettre::{Address, message::Mailbox};
 use ruma::{OwnedDeviceId, OwnedUserId, UserId};
+use ruma::push::Ruleset;
 use serde::{Deserialize, Serialize};
 use service::mailer::messages;
 
@@ -243,7 +245,7 @@ pub(crate) async fn register_route(
 			ruma::events::GlobalAccountDataEventType::PushRules.to_string().into(),
 			&serde_json::to_value(ruma::events::push_rules::PushRulesEvent {
 				content: ruma::events::push_rules::PushRulesEventContent {
-					global: ruma::events::push::Ruleset::server_default(&user_id),
+					global: Ruleset::server_default(&user_id),
 				},
 			})?,
 		)
