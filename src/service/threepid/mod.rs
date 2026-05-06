@@ -288,9 +288,9 @@ impl Service {
 	pub async fn associate_localpart_email(
 		&self,
 		localpart: &str,
-		email: &Address,
+		email: &str,
 	) -> Result<()> {
-		match self.get_localpart_for_email(email.as_ref()).await {
+		match self.get_localpart_for_email(email).await {
 			| Some(existing_localpart) if existing_localpart != localpart => {
 				// Another account is already using the supplied email.
 
@@ -307,7 +307,6 @@ impl Service {
 				// Remove the user's existing email first.
 				let _ = self.disassociate_localpart_email(localpart).await;
 
-				let email: &str = email.as_ref();
 				self.db.localpart_email.insert(localpart, email);
 				self.db.email_localpart.insert(email, localpart);
 				Ok(())

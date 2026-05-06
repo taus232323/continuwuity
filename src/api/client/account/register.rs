@@ -167,7 +167,6 @@ pub(crate) async fn submit_registration_token_via_email_route(
 /// # `POST /_matrix/client/v3/register`
 ///
 /// Create an account after the email address has already been verified.
-#[axum::debug_handler]
 #[tracing::instrument(skip_all, fields(%client), name = "register", level = "info")]
 pub(crate) async fn register_route(
 	State(services): State<crate::State>,
@@ -258,7 +257,7 @@ pub(crate) async fn register_route(
 	// visible to the user.
 	services
 		.threepid
-		.associate_localpart_email(user_id.localpart(), &email)
+		.associate_localpart_email(user_id.localpart(), email.as_ref())
 		.await?;
 
 	let mut displayname = user_id.localpart().to_owned();

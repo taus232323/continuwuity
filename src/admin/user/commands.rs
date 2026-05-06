@@ -1177,7 +1177,7 @@ pub(super) async fn change_email(&self, user_id: String, email: Option<String>) 
 		| (current_email, Some(new_email)) => {
 			self.services
 				.threepid
-				.associate_localpart_email(user_id.localpart(), &new_email)
+				.associate_localpart_email(user_id.localpart(), new_email.as_ref())
 				.await?;
 
 			if let Some(current_email) = current_email {

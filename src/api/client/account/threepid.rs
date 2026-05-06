@@ -126,7 +126,7 @@ pub(crate) async fn add_3pid_route(
 
 	services
 		.threepid
-		.associate_localpart_email(sender_user.localpart(), &email)
+		.associate_localpart_email(sender_user.localpart(), email.as_ref())
 		.await?;
 
 	Ok(add_3pid::v3::Response::new())
