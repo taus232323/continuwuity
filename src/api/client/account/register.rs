@@ -1,6 +1,7 @@
 use std::fmt::Write;
 
-use axum::{Json, extract::State};
+use axum::{extract::State, Json};
+use bytes::Bytes;
 use axum_client_ip::ClientIp;
 use conduwuit::{Err, Result, debug_info, err, utils};
 use conduwuit_service::Services;
@@ -93,8 +94,11 @@ pub(crate) async fn get_register_available_route(
 /// Request a verification code for a new account.
 pub(crate) async fn request_registration_token_via_email_route(
 	State(services): State<crate::State>,
-	Json(body): Json<RegistrationEmailRequestTokenRequest>,
+	body: Bytes,
 ) -> Result<Json<RegistrationEmailRequestTokenResponse>> {
+	let body: RegistrationEmailRequestTokenRequest = serde_json::from_slice(&body)
+		.map_err(|e| err!(Request(BadJson("Invalid JSON body: {e}"))))?;
+
 	if !services.config.allow_registration && !services.firstrun.is_first_run() {
 		return Err!(Request(Forbidden(
 			"This server is not accepting registrations at this time."
@@ -145,8 +149,11 @@ pub(crate) async fn request_registration_token_via_email_route(
 /// Validate a registration email code.
 pub(crate) async fn submit_registration_token_via_email_route(
 	State(services): State<crate::State>,
-	Json(body): Json<RegistrationEmailSubmitTokenRequest>,
+	body: Bytes,
 ) -> Result<Json<RegistrationEmailSubmitTokenResponse>> {
+	let body: RegistrationEmailSubmitTokenRequest = serde_json::from_slice(&body)
+		.map_err(|e| err!(Request(BadJson("Invalid JSON body: {e}"))))?;
+
 	services
 		.threepid
 		.try_validate_session(
@@ -191,8 +198,11 @@ fn parse_registration_email(
 pub(crate) async fn register_route(
 	State(services): State<crate::State>,
 	ClientIp(client): ClientIp,
-	Json(body): Json<RegisterRequest>,
+	body: Bytes,
 ) -> Result<Json<ruma::api::client::account::register::v3::Response>> {
+	let body: RegisterRequest = serde_json::from_slice(&body)
+		.map_err(|e| err!(Request(BadJson("Invalid JSON body: {e}"))))?;
+
 	if !services.config.allow_registration && !services.firstrun.is_first_run() {
 		return Err!(Request(Forbidden(
 			"This server is not accepting registrations at this time."
