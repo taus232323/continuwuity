@@ -44,11 +44,12 @@ pub(crate) struct ValidationToken {
 impl ValidationToken {
 	// one hour
 	const MAX_TOKEN_AGE: Duration = Duration::from_secs(60 * 60);
-	const RANDOM_TOKEN_LENGTH: usize = 16;
 
 	pub(super) fn new_random() -> Self {
+		let token = format!("{:06}", rand::random_range(0..1_000_000));
+
 		Self {
-			token: utils::random_string(Self::RANDOM_TOKEN_LENGTH),
+			token,
 			issued_at: SystemTime::now(),
 		}
 	}

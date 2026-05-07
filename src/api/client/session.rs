@@ -26,33 +26,6 @@ use serde_json::json;
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
 use crate::Ruma;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct LoginEmailRequestTokenRequest {
-	pub client_secret: String,
-	pub login: Option<String>,
-	pub password: Option<String>,
-	pub send_attempt: Option<usize>,
-	pub sid: Option<String>,
-	pub token: Option<String>,
-	pub device_id: Option<OwnedDeviceId>,
-	pub initial_device_display_name: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub(crate) struct LoginEmailRequestTokenResponse {
-	pub sid: String,
-	pub email: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct LoginEmailSubmitTokenRequest {
-	pub client_secret: String,
-	pub sid: String,
-	pub token: String,
-	pub device_id: Option<OwnedDeviceId>,
-	pub initial_device_display_name: Option<String>,
-}
-
 #[derive(Debug, Serialize)]
 pub(crate) struct LoginResponse {
 	pub user_id: OwnedUserId,
@@ -60,6 +33,33 @@ pub(crate) struct LoginResponse {
 	pub device_id: Option<OwnedDeviceId>,
 	pub home_server: Option<String>,
 	pub refresh_token: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct LoginEmailRequestTokenResponse {
+	sid: String,
+	email: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct LoginEmailRequestTokenRequest {
+	client_secret: String,
+	login: Option<String>,
+	password: Option<String>,
+	send_attempt: Option<usize>,
+	sid: Option<String>,
+	token: Option<String>,
+	device_id: Option<OwnedDeviceId>,
+	initial_device_display_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct LoginEmailSubmitTokenRequest {
+	client_secret: String,
+	sid: String,
+	token: String,
+	device_id: Option<OwnedDeviceId>,
+	initial_device_display_name: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -71,7 +71,7 @@ pub(crate) enum LoginFlowResponse {
 
 /// # `GET /_matrix/client/v3/login`
 ///
-/// Returns a simple description of the custom login flow.
+/// Returns the homeserver's supported custom login flow.
 pub(crate) async fn get_login_types_route() -> Result<Json<serde_json::Value>> {
 	Ok(Json(json!({
 		"flows": [
@@ -270,7 +270,7 @@ pub(crate) async fn handle_login(
 
 /// # `POST /_matrix/client/v3/login`
 ///
-/// Starts the password-first, email-code login flow.
+/// Handles the custom password + email code login flow.
 #[tracing::instrument(skip_all, fields(%client), name = "login", level = "info")]
 pub(crate) async fn login_route(
 	State(services): State<crate::State>,
@@ -397,13 +397,28 @@ pub(crate) async fn finish_login_after_email_code(
 		return Err!(Request(Forbidden("This account is not permitted to log in.")));
 	}
 
-	let device_id = body
-		.device_id
-		.clone()
-		.unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into());
+	let response = complete_login(
+		services,
+		client,
+		user_id,
+		body.device_id,
+		body.initial_device_display_name,
+	)
+	.await?;
 
-	let token = services.users.generate_unique_token().await;
-	let device_exists = if let Some(ref provided_device_id) = body.device_id {
+	info!("{user_id} completed login verification");
+
+	Ok(response)
+}
+
+async fn complete_login(
+	services: &Services,
+	client: String,
+	user_id: OwnedUserId,
+	device_id: Option<OwnedDeviceId>,
+	initial_device_display_name: Option<String>,
+) -> Result<LoginResponse> {
+	let device_exists = if let Some(ref provided_device_id) = device_id {
 		services
 			.users
 			.all_device_ids(&user_id)
@@ -413,11 +428,11 @@ pub(crate) async fn finish_login_after_email_code(
 		false
 	};
 
+	let device_id = device_id.unwrap_or_else(|| utils::random_string(DEVICE_ID_LENGTH).into());
+	let token = services.users.generate_unique_token().await;
+
 	if device_exists {
-		services
-			.users
-			.set_token(&user_id, &device_id, &token)
-			.await?;
+		services.users.set_token(&user_id, &device_id, &token).await?;
 	} else {
 		services
 			.users
@@ -425,13 +440,11 @@ pub(crate) async fn finish_login_after_email_code(
 				&user_id,
 				&device_id,
 				&token,
-				body.initial_device_display_name.clone(),
+				initial_device_display_name,
 				Some(client.clone()),
 			)
 			.await?;
 	}
-
-	info!("{user_id} completed login verification from IP {client}");
 
 	Ok(LoginResponse {
 		user_id,
