@@ -406,7 +406,7 @@ pub(crate) async fn finish_login_after_email_code(
 	)
 	.await?;
 
-	info!("{user_id} completed login verification");
+	info!("{} completed login verification", response.user_id);
 
 	Ok(response)
 }
