@@ -198,11 +198,8 @@ fn parse_registration_email(
 pub(crate) async fn register_route(
 	State(services): State<crate::State>,
 	ClientIp(client): ClientIp,
-	body: Bytes,
+	Json(body): Json<RegisterRequest>,
 ) -> Result<Json<ruma::api::client::account::register::v3::Response>> {
-	let body: RegisterRequest = serde_json::from_slice(&body)
-		.map_err(|e| err!(Request(BadJson("Invalid JSON body: {e}"))))?;
-
 	if !services.config.allow_registration && !services.firstrun.is_first_run() {
 		return Err!(Request(Forbidden(
 			"This server is not accepting registrations at this time."
