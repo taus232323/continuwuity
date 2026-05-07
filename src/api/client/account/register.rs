@@ -9,6 +9,7 @@ use lettre::{Address, message::Mailbox};
 use ruma::{OwnedClientSecret, OwnedDeviceId, OwnedSessionId, OwnedUserId, UserId};
 use ruma::push::Ruleset;
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 use service::mailer::messages;
 
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
@@ -198,8 +199,11 @@ fn parse_registration_email(
 pub(crate) async fn register_route(
 	State(services): State<crate::State>,
 	ClientIp(client): ClientIp,
-	Json(body): Json<RegisterRequest>,
-) -> Result<Json<ruma::api::client::account::register::v3::Response>> {
+	Json(body): Json<Value>,
+) -> Result<Json<Value>> {
+	let body: RegisterRequest = serde_json::from_value(body)
+		.map_err(|e| err!(Request(BadJson("Invalid JSON body: {e}"))))?;
+
 	if !services.config.allow_registration && !services.firstrun.is_first_run() {
 		return Err!(Request(Forbidden(
 			"This server is not accepting registrations at this time."
@@ -326,13 +330,13 @@ pub(crate) async fn register_route(
 			.await;
 	}
 
-	Ok(Json(ruma::api::client::account::register::v3::Response {
-		access_token: token,
-		user_id,
-		device_id: device,
-		refresh_token: None,
-		expires_in: None,
-	}))
+	Ok(Json(json!({
+		"access_token": token,
+		"user_id": user_id,
+		"device_id": device,
+		"refresh_token": null,
+		"expires_in": null,
+	})))
 }
 
 async fn determine_registration_user_id(
