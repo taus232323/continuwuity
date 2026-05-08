@@ -3,7 +3,7 @@ use std::sync::Arc;
 use conduwuit::{Err, Result, err, info};
 use lettre::{
 	AsyncSmtpTransport, AsyncTransport, Tokio1Executor,
-	message::{Mailbox, MessageBuilder, header::ContentType},
+	message::{Mailbox, MessageBuilder, MultiPart, SinglePart, header::ContentType},
 };
 
 use crate::{Args, mailer::messages::MessageTemplate};
@@ -86,18 +86,35 @@ impl Mailer<'_> {
 		message: Template,
 	) -> Result<()> {
 		let subject = message.subject();
-		let body = message
+		let plain_body = message
 			.render()
 			.map_err(|err| err!("Failed to render message template: {err}"))?;
+		let html_body = message.html_body();
 
-		let message = MessageBuilder::new()
+		let builder = MessageBuilder::new()
 			.from(self.sender.clone())
 			.to(recipient)
 			.subject(subject)
-			.date_now()
-			.header(ContentType::TEXT_PLAIN)
-			.body(body)
-			.expect("should have been able to construct message");
+			.date_now();
+
+		let message = if let Some(html_body) = html_body {
+			builder
+				.multipart(
+					MultiPart::alternative()
+						.singlepart(SinglePart::plain(plain_body))
+						.singlepart(
+							SinglePart::builder()
+								.header(ContentType::TEXT_HTML)
+								.body(html_body),
+						),
+				)
+				.expect("should have been able to construct multipart message")
+		} else {
+			builder
+				.header(ContentType::TEXT_PLAIN)
+				.body(plain_body)
+				.expect("should have been able to construct message")
+		};
 
 		self.transport
 			.send(message)

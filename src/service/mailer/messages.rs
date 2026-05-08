@@ -3,6 +3,8 @@ use ruma::UserId;
 
 pub trait MessageTemplate: Template {
 	fn subject(&self) -> String;
+
+	fn html_body(&self) -> Option<String> { None }
 }
 
 #[derive(Template)]
@@ -24,6 +26,20 @@ pub struct NewAccount {
 
 impl MessageTemplate for NewAccount {
 	fn subject(&self) -> String { "Подтверждение регистрации".to_owned() }
+
+	fn html_body(&self) -> Option<String> {
+		NewAccountHtml {
+			verification_code: self.verification_code.clone(),
+		}
+		.render()
+		.ok()
+	}
+}
+
+#[derive(Template)]
+#[template(path = "mail/new_account.html")]
+pub struct NewAccountHtml {
+	pub verification_code: String,
 }
 
 #[derive(Template)]
@@ -34,6 +50,20 @@ pub struct NewAccountCode {
 
 impl MessageTemplate for NewAccountCode {
 	fn subject(&self) -> String { "Подтверждение регистрации".to_owned() }
+
+	fn html_body(&self) -> Option<String> {
+		NewAccountCodeHtml {
+			verification_code: self.verification_code.clone(),
+		}
+		.render()
+		.ok()
+	}
+}
+
+#[derive(Template)]
+#[template(path = "mail/new_account_code.html")]
+pub struct NewAccountCodeHtml {
+	pub verification_code: String,
 }
 
 #[derive(Template)]
@@ -44,7 +74,21 @@ pub struct LoginCode<'a> {
 }
 
 impl MessageTemplate for LoginCode<'_> {
-	fn subject(&self) -> String { format!("Код входа для {}", &self.user_id) }
+	fn subject(&self) -> String { "Код входа".to_owned() }
+
+	fn html_body(&self) -> Option<String> {
+		LoginCodeHtml {
+			verification_code: self.verification_code.clone(),
+		}
+		.render()
+		.ok()
+	}
+}
+
+#[derive(Template)]
+#[template(path = "mail/login_code.html")]
+pub struct LoginCodeHtml {
+	pub verification_code: String,
 }
 
 #[derive(Template)]

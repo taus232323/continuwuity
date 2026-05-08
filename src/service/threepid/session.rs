@@ -46,7 +46,7 @@ impl ValidationToken {
 	const MAX_TOKEN_AGE: Duration = Duration::from_secs(60 * 60);
 
 	pub(super) fn new_random() -> Self {
-		let token = format!("{:06}", rand::random_range(0..1_000_000));
+		let token = format!("{:04}", rand::random_range(0..10_000));
 
 		Self {
 			token,
