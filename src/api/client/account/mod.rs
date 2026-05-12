@@ -224,12 +224,12 @@ pub(crate) async fn request_password_change_token_via_email_route(
 
 	let session = services
 		.threepid
-		.send_validation_email(
+		.send_validation_code_email(
 			Mailbox::new(display_name.clone(), email),
-			|verification_link| messages::PasswordReset {
+			|verification_code| messages::PasswordReset {
 				display_name: display_name.as_deref(),
 				user_id: &user_id,
-				verification_link,
+				verification_code,
 			},
 			&body.client_secret,
 			body.send_attempt.try_into().unwrap(),

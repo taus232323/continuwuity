@@ -220,12 +220,12 @@ curl -i https://matrix.celesteai.ru/_continuwuity/3pid/email/validate
 1. Открыть клиент.
 2. Начать регистрацию на `celesteai.ru`.
 3. Запросить письмо регистрации.
-4. Перейти по ссылке в письме.
+4. Ввести код подтверждения из письма.
 5. Завершить регистрацию.
 6. Выйти из аккаунта.
 7. Зайти снова по Matrix ID/localpart или email, если клиент поддерживает email
    identifier.
-8. Проверить password reset по email.
+8. Проверить сброс пароля по коду из email.
 
 Ожидаемое поведение username:
 
