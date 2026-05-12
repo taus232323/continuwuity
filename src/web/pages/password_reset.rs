@@ -17,7 +17,7 @@ use crate::{
 	template,
 };
 
-const INVALID_TOKEN_ERROR: &str = "Invalid reset token. Your reset link may have expired.";
+const INVALID_TOKEN_ERROR: &str = "Invalid reset token. Your confirmation code may have expired.";
 
 template! {
 	struct PasswordReset<'a> use "password_reset.html.j2" {
