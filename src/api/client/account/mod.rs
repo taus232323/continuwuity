@@ -1,4 +1,4 @@
-use axum::extract::State;
+use axum::{Json, extract::State};
 use axum_client_ip::ClientIp;
 use conduwuit::{
 	Err, Event, Result, err, info,
@@ -9,7 +9,7 @@ use conduwuit_service::Services;
 use futures::{FutureExt, StreamExt};
 use lettre::{Address, message::Mailbox};
 use ruma::{
-	OwnedRoomId, OwnedUserId, UserId,
+	OwnedClientSecret, OwnedRoomId, OwnedSessionId, OwnedUserId, UserId,
 	api::client::{
 		account::{
 			ThirdPartyIdRemovalStatus, change_password, check_registration_token_validity,
@@ -26,6 +26,7 @@ use ruma::{
 		},
 	},
 };
+use serde::{Deserialize, Serialize};
 use service::{mailer::messages, uiaa::Identity};
 
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
@@ -208,15 +209,16 @@ pub(crate) async fn request_password_change_token_via_email_route(
 		return Err!(Request(InvalidParam("Invalid email address.")));
 	};
 
-	let Some(localpart) = services
+	if services
 		.threepid
 		.get_localpart_for_email(<Address as AsRef<str>>::as_ref(&email))
 		.await
-	else {
+		.is_none()
+	{
 		return Err!(Request(ThreepidNotFound(
 			"No account is associated with this email address"
 		)));
-	};
+	}
 
 	let session = services
 		.threepid
@@ -229,6 +231,43 @@ pub(crate) async fn request_password_change_token_via_email_route(
 		.await?;
 
 	Ok(request_password_change_token_via_email::v3::Response::new(session))
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct PasswordChangeSubmitTokenRequest {
+	pub client_secret: String,
+	pub sid: String,
+	pub token: String,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct PasswordChangeSubmitTokenResponse {
+	pub sid: String,
+}
+
+/// # `POST /_matrix/client/v3/account/password/email/submitToken`
+///
+/// Validates the code sent for password reset.
+pub(crate) async fn submit_password_change_token_via_email_route(
+	State(services): State<crate::State>,
+	Json(body): Json<PasswordChangeSubmitTokenRequest>,
+) -> Result<Json<PasswordChangeSubmitTokenResponse>> {
+	let _client_secret = body
+		.client_secret
+		.parse::<OwnedClientSecret>()
+		.map_err(|_| err!(Request(InvalidParam("Invalid client_secret"))))?;
+	let sid = body
+		.sid
+		.parse::<OwnedSessionId>()
+		.map_err(|_| err!(Request(InvalidParam("Invalid sid"))))?;
+
+	services
+		.threepid
+		.try_validate_session(&sid, &body.token)
+		.await
+		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
+
+	Ok(Json(PasswordChangeSubmitTokenResponse { sid: body.sid }))
 }
 
 /// # `GET /_matrix/client/v3/account/whoami`

@@ -310,26 +310,9 @@ impl Service {
 		match auth {
 			| AuthData::Dummy(_) => Ok(AuthType::Dummy),
 			| AuthData::EmailIdentity(EmailIdentity {
-				thirdparty_id_creds: ThirdpartyIdCredentials {
-					client_secret,
-					sid,
-					id_server: _,
-					id_access_token,
-				},
+				thirdparty_id_creds: ThirdpartyIdCredentials { client_secret, sid, .. },
 				..
 			}) => {
-				if let Err(message) = self
-					.services
-					.threepid
-					.try_validate_session(sid, id_access_token)
-					.await
-				{
-					return Err(StandardErrorBody {
-						kind: ErrorKind::ThreepidAuthFailed,
-						message: message.into_owned(),
-					});
-				}
-
 				match self
 					.services
 					.threepid

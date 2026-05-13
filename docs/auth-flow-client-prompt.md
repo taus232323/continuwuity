@@ -177,6 +177,17 @@ Response:
 - отсутствует email у аккаунта на login:
   - показать, что вход через email verification невозможен
 
+### Reset password
+
+1. Клиент запрашивает код для сброса пароля через:
+   - `POST /_matrix/client/v3/account/password/email/requestToken`
+2. Сервер отправляет код на email и возвращает `sid`.
+3. Клиент показывает экран ввода кода.
+4. После ввода кода клиент вызывает:
+   - `POST /_matrix/client/v3/account/password/email/submitToken`
+5. Если код верный, сервер возвращает `sid`.
+6. После этого клиент завершает смену пароля обычным `POST /_matrix/client/v3/account/password` с `m.login.email.identity` и тем же `sid`/`client_secret`.
+
 ## UX требования
 
 - Не показывать старый UIAA login flow.
