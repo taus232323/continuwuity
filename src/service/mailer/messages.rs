@@ -93,19 +93,15 @@ pub struct LoginCodeHtml {
 
 #[derive(Template)]
 #[template(path = "mail/password_reset.txt")]
-pub struct PasswordReset<'a> {
-	pub display_name: Option<&'a str>,
-	pub user_id: &'a UserId,
+pub struct PasswordReset {
 	pub verification_code: String,
 }
 
-impl MessageTemplate for PasswordReset<'_> {
-	fn subject(&self) -> String { format!("Запрос на сброс пароля для {}", &self.user_id) }
+impl MessageTemplate for PasswordReset {
+	fn subject(&self) -> String { "Запрос на сброс пароля".to_owned() }
 
 	fn html_body(&self) -> Option<String> {
 		PasswordResetHtml {
-			display_name: self.display_name,
-			user_id: self.user_id,
 			verification_code: self.verification_code.clone(),
 		}
 		.render()
@@ -115,9 +111,7 @@ impl MessageTemplate for PasswordReset<'_> {
 
 #[derive(Template)]
 #[template(path = "mail/password_reset.html")]
-pub struct PasswordResetHtml<'a> {
-	pub display_name: Option<&'a str>,
-	pub user_id: &'a UserId,
+pub struct PasswordResetHtml {
 	pub verification_code: String,
 }
 
