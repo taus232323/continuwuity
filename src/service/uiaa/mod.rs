@@ -313,14 +313,15 @@ impl Service {
 				thirdparty_id_creds: ThirdpartyIdCredentials {
 					client_secret,
 					sid,
-					token,
+					id_server: _,
+					id_access_token,
 				},
 				..
 			}) => {
 				if let Err(message) = self
 					.services
 					.threepid
-					.try_validate_session(sid, token)
+					.try_validate_session(sid, id_access_token)
 					.await
 				{
 					return Err(StandardErrorBody {
