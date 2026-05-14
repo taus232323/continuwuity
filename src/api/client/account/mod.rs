@@ -27,6 +27,7 @@ use ruma::{
 	},
 };
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use service::{mailer::messages, uiaa::Identity};
 
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
@@ -128,20 +129,9 @@ pub(crate) async fn change_password_route(
 			)
 			.await?
 	} else {
-		// A signed-out user is trying to reset their password, prompt them for email
-		// confirmation. Note that we do not _send_ an email here, their client should
-		// have already hit `/account/password/requestToken` to send the email. We
-		// just validate it.
-
-		services
-			.uiaa
-			.authenticate(
-				&body.auth,
-				vec![AuthFlow::new(vec![AuthType::EmailIdentity])],
-				Box::default(),
-				None,
-			)
-			.await?
+		return Err!(Request(Forbidden(
+			"Password reset uses /_matrix/client/v3/account/password/email/*"
+		)));
 	};
 
 	let sender_user = OwnedUserId::parse(format!(
@@ -268,6 +258,86 @@ pub(crate) async fn submit_password_change_token_via_email_route(
 		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
 
 	Ok(Json(PasswordChangeSubmitTokenResponse { sid: body.sid }))
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct PasswordResetRequest {
+	pub client_secret: String,
+	pub sid: String,
+	pub new_password: String,
+	#[serde(default)]
+	pub logout_devices: bool,
+}
+
+/// # `POST /_matrix/client/v3/account/password/email/reset`
+///
+/// Sets a new password after the email code has been validated.
+pub(crate) async fn reset_password_via_email_route(
+	State(services): State<crate::State>,
+	Json(body): Json<PasswordResetRequest>,
+) -> Result<Json<serde_json::Value>> {
+	let client_secret = body
+		.client_secret
+		.parse::<OwnedClientSecret>()
+		.map_err(|_| err!(Request(InvalidParam("Invalid client_secret"))))?;
+	let sid = body
+		.sid
+		.parse::<OwnedSessionId>()
+		.map_err(|_| err!(Request(InvalidParam("Invalid sid"))))?;
+
+	let email = services
+		.threepid
+		.consume_valid_session(&sid, &client_secret)
+		.await
+		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
+
+	let Some(localpart) = services
+		.threepid
+		.get_localpart_for_email(<Address as AsRef<str>>::as_ref(&email))
+		.await
+	else {
+		return Err!(Request(Forbidden(
+			"This account is not associated with a user."
+		)));
+	};
+
+	let sender_user = OwnedUserId::parse(format!(
+		"@{localpart}:{}",
+		services.globals.server_name()
+	))
+	.expect("user ID should be valid");
+
+	services
+		.users
+		.set_password(&sender_user, Some(&body.new_password))
+		.await?;
+
+	if body.logout_devices {
+		services
+			.users
+			.all_device_ids(&sender_user)
+			.for_each(|device_id| services.users.remove_device(&sender_user, device_id))
+			.await;
+
+		services
+			.pusher
+			.get_pushkeys(&sender_user)
+			.for_each(async |pushkey| {
+				services.pusher.delete_pusher(&sender_user, pushkey).await;
+			})
+			.await;
+	}
+
+	info!("User {} reset their password.", &sender_user);
+
+	if services.server.config.admin_room_notices {
+		services
+			.admin
+			.notice(&format!("User {} reset their password.", &sender_user))
+			.await;
+	}
+
+	Ok(Json(json!({})))
 }
 
 /// # `GET /_matrix/client/v3/account/whoami`

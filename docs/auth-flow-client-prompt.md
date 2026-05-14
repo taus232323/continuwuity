@@ -186,13 +186,20 @@ Response:
 4. После ввода кода клиент вызывает:
    - `POST /_matrix/client/v3/account/password/email/submitToken`
 5. Если код верный, сервер возвращает `sid`.
-6. После этого клиент завершает смену пароля обычным `POST /_matrix/client/v3/account/password` с `m.login.email.identity` и тем же `sid`/`client_secret`.
+6. После этого клиент завершает смену пароля:
+   - `POST /_matrix/client/v3/account/password/email/reset`
+7. В запросе нужно передать:
+   - `client_secret`
+   - `sid`
+   - `new_password`
+   - `logout_devices` по необходимости
 
 ## UX требования
 
 - Не показывать старый UIAA login flow.
 - Не пытаться завершать login сразу после пароля.
 - Не пытаться завершать registration сразу после email-кода.
+- Не использовать старый Matrix flow для сброса пароля.
 - Хранить промежуточное состояние между экранами.
 - Если пользователь вернулся назад, не терять `client_secret` и `sid`, пока flow не завершён.
 
