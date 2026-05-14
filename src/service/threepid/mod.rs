@@ -1,7 +1,12 @@
 use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
-use conduwuit::{Err, Error, Result, result::FlatOk};
+use conduwuit::{
+	Err, Error, Result,
+	result::FlatOk,
+	utils::{ReadyExt, stream::TryIgnore},
+};
 use database::{Deserialized, Map};
+use futures::StreamExt;
 use governor::{DefaultKeyedRateLimiter, Quota, RateLimiter};
 use lettre::{Address, message::Mailbox};
 use nonzero_ext::nonzero;
@@ -304,6 +309,17 @@ impl Service {
 				Ok(())
 			},
 			| None => {
+				let matching_localparts = self
+					.find_localparts_for_normalized_email(&normalized_email)
+					.await;
+
+				if matching_localparts
+					.iter()
+					.any(|existing_localpart| existing_localpart != localpart)
+				{
+					return Err!(Request(ThreepidInUse("This email address is already in use.")));
+				}
+
 				// The supplied email is not already in use.
 
 				// Remove the user's existing email first.
@@ -326,7 +342,7 @@ impl Service {
 		self.db.localpart_email.remove(localpart);
 		self.db
 			.email_localpart
-			.remove(<Address as AsRef<str>>::as_ref(&email));
+			.remove(&normalize_email(<Address as AsRef<str>>::as_ref(&email)));
 
 		Some(email)
 	}
@@ -347,12 +363,44 @@ impl Service {
 	pub async fn get_localpart_for_email(&self, email: &str) -> Option<String> {
 		let normalized_email = normalize_email(email);
 
-		self.db
+		if let Ok(localpart) = self
+			.db
 			.email_localpart
 			.get(normalized_email.as_str())
 			.await
 			.deserialized()
-			.ok()
+		{
+			return Some(localpart);
+		}
+
+		let mut matching_localparts = self
+			.find_localparts_for_normalized_email(&normalized_email)
+			.await;
+
+		if matching_localparts.len() != 1 {
+			return None;
+		}
+
+		let matching_localpart = matching_localparts.pop()?;
+
+		self.db
+			.email_localpart
+			.insert(&normalized_email, &matching_localpart);
+
+		Some(matching_localpart)
+	}
+
+	async fn find_localparts_for_normalized_email(&self, normalized_email: &str) -> Vec<String> {
+		self
+			.db
+			.localpart_email
+			.stream::<'_, String, String>()
+			.ignore_err()
+			.ready_filter(|(_, stored_email)| normalize_email(stored_email) == normalized_email)
+			.take(2)
+			.map(|(localpart, _)| localpart)
+			.collect::<Vec<_>>()
+			.await
 	}
 }
 
