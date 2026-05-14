@@ -11,7 +11,6 @@ use ruma::push::Ruleset;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use service::mailer::messages;
-use crate::service::threepid::normalize_email;
 
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
 use crate::Ruma;
@@ -266,7 +265,7 @@ pub(crate) async fn register_route(
 		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
 	let email = email.to_string();
 
-	if normalize_email(&email) != normalize_email(&submitted_email) {
+	if email.trim().to_lowercase() != submitted_email.trim().to_lowercase() {
 		return Err!(Request(ThreepidAuthFailed(
 			"Verification email does not match the supplied address"
 		)));
