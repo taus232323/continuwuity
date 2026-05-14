@@ -5,13 +5,15 @@ use std::{
 };
 
 use axum::{
+	body::{Body, to_bytes},
 	extract::State,
 	response::{IntoResponse, Response},
 };
-use conduwuit::{Result, debug, debug_error, debug_warn, err, error, trace};
+use conduwuit::{Result, debug, debug_error, debug_warn, err, error, info, trace};
 use conduwuit_service::Services;
 use futures::FutureExt;
-use http::{Method, StatusCode, Uri};
+use http::{Method, Request, StatusCode, Uri};
+use serde_json::Value;
 use tokio::time::sleep;
 use tracing::Span;
 
@@ -96,6 +98,43 @@ async fn execute(
 	next.run(req).await
 }
 
+#[tracing::instrument(name = "auth_request", level = "info", skip_all)]
+pub(crate) async fn auth_request(
+	State(services): State<Arc<Services>>,
+	req: Request<Body>,
+	next: axum::middleware::Next,
+) -> Result<Response, StatusCode> {
+	let path = req.uri().path().to_owned();
+	let method = req.method().clone();
+
+	if let Some(label) = auth_request_label(&path) {
+		let max_body_size = services.server.config.max_request_size;
+		let (parts, body) = req.into_parts();
+		let body = to_bytes(body, max_body_size)
+			.await
+			.map_err(|_| {
+				debug_warn!(%method, %path, %label, "failed to read auth request body");
+				StatusCode::BAD_REQUEST
+			})?;
+		let body_keys = json_keys(&body);
+
+		info!(%method, %path, %label, ?body_keys, "auth request start");
+
+		let req = Request::from_parts(parts, Body::from(body));
+		let response = next.run(req).await;
+		info!(
+			%method,
+			%path,
+			%label,
+			status = %response.status(),
+			"auth request end"
+		);
+		return Ok(response);
+	}
+
+	Ok(next.run(req).await)
+}
+
 fn handle_result(method: &Method, uri: &Uri, result: Response) -> Result<Response, StatusCode> {
 	let status = result.status();
 	let code = status.as_u16();
@@ -116,6 +155,32 @@ fn handle_result(method: &Method, uri: &Uri, result: Response) -> Result<Respons
 	}
 
 	Ok(result)
+}
+
+fn auth_request_label(path: &str) -> Option<&'static str> {
+	match path {
+		"/_matrix/client/v3/login" => Some("login"),
+		"/_matrix/client/v3/register" => Some("register"),
+		"/_matrix/client/v3/register/email/requestToken" => Some("register_request_token"),
+		"/_matrix/client/v3/register/email/submitToken" => Some("register_submit_token"),
+		"/_matrix/client/v3/account/password/email/requestToken" => {
+			Some("password_reset_request_token")
+		},
+		"/_matrix/client/v3/account/password/email/submitToken" => {
+			Some("password_reset_submit_token")
+		},
+		"/_matrix/client/v3/account/password/email/reset" => Some("password_reset"),
+		"/_matrix/client/v3/account/password" => Some("legacy_password_change"),
+		_ => None,
+	}
+}
+
+fn json_keys(body: &[u8]) -> Vec<String> {
+	serde_json::from_slice::<Value>(body)
+		.ok()
+		.and_then(|value| value.as_object().cloned())
+		.map(|map| map.keys().cloned().collect())
+		.unwrap_or_default()
 }
 
 #[cold]

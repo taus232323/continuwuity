@@ -58,6 +58,10 @@ pub(crate) fn build(services: &Arc<Services>) -> Result<(Router, Guard)> {
 				.on_request(DefaultOnRequest::new().level(Level::TRACE))
 				.on_response(DefaultOnResponse::new().level(Level::DEBUG)),
 		)
+		.layer(axum::middleware::from_fn_with_state(
+			Arc::clone(services),
+			request::auth_request,
+		))
 		.layer(axum::middleware::from_fn_with_state(Arc::clone(services), request::handle))
 		.layer(ClientIpSource::ConnectInfo.into_extension())
 		.layer(ResponseBodyTimeoutLayer::new(Duration::from_secs(
