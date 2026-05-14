@@ -11,6 +11,7 @@ use ruma::push::Ruleset;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use service::mailer::messages;
+use crate::service::threepid::normalize_email;
 
 use super::{DEVICE_ID_LENGTH, TOKEN_LENGTH};
 use crate::Ruma;
@@ -78,10 +79,16 @@ pub(crate) async fn get_register_available_route(
 					"Username {} is not valid: {e}",
 					body.username
 				))));
-			},
-		};
+		},
+	};
 
-	if services.users.exists(&user_id).await {
+	let lowercased_user_id = UserId::parse_with_server_name(
+		body.username.to_lowercase(),
+		services.globals.server_name(),
+	)
+	.unwrap();
+
+	if services.users.exists(&user_id).await || services.users.exists(&lowercased_user_id).await {
 		return Err!(Request(UserInUse("User ID is not available.")));
 	}
 
@@ -259,7 +266,7 @@ pub(crate) async fn register_route(
 		.map_err(|message| err!(Request(ThreepidAuthFailed("{message}"))))?;
 	let email = email.to_string();
 
-	if email != submitted_email {
+	if normalize_email(&email) != normalize_email(&submitted_email) {
 		return Err!(Request(ThreepidAuthFailed(
 			"Verification email does not match the supplied address"
 		)));
@@ -383,11 +390,17 @@ async fn determine_registration_user_id(
 			},
 		};
 
-		if services.users.exists(&user_id).await {
+		let lowercased_user_id = UserId::parse_with_server_name(
+			supplied_username.to_lowercase(),
+			services.globals.server_name(),
+		)
+		.unwrap();
+
+		if services.users.exists(&user_id).await || services.users.exists(&lowercased_user_id).await {
 			return Err!(Request(UserInUse("User ID is not available.")));
 		}
 
-		Ok(user_id)
+		Ok(lowercased_user_id)
 	} else {
 		loop {
 			let user_id = UserId::parse_with_server_name(

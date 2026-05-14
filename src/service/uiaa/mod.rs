@@ -356,9 +356,31 @@ impl Service {
 				}
 			},
 			#[allow(clippy::useless_let_if_seq)]
-			| AuthData::Password(Password { identifier, password, .. }) => {
-				let user_id_or_localpart = match identifier {
-					| Some(UserIdentifier::UserIdOrLocalpart(username)) => username.to_owned(),
+				| AuthData::Password(Password { identifier, password, .. }) => {
+				let user_id = match identifier {
+					| Some(UserIdentifier::UserIdOrLocalpart(username)) => {
+						let Ok(user_id) = UserId::parse_with_server_name(
+							username,
+							self.services.globals.server_name(),
+						) else {
+							return Err(StandardErrorBody {
+								kind: ErrorKind::InvalidParam,
+								message: "User ID is malformed".to_owned(),
+							});
+						};
+
+						let lowercased_user_id = UserId::parse_with_server_name(
+							user_id.localpart().to_lowercase(),
+							self.services.globals.server_name(),
+						)
+						.unwrap();
+
+						if self.services.users.exists(&lowercased_user_id).await {
+							lowercased_user_id
+						} else {
+							user_id
+						}
+					},
 					| Some(UserIdentifier::Email { address }) => {
 						let Ok(email) = Address::try_from(address.to_owned()) else {
 							return Err(StandardErrorBody {
@@ -376,7 +398,27 @@ impl Service {
 						{
 							identity.try_set_email(email)?;
 
-							localpart
+							let Ok(user_id) = UserId::parse_with_server_name(
+								localpart,
+								self.services.globals.server_name(),
+							) else {
+								return Err(StandardErrorBody {
+									kind: ErrorKind::InvalidParam,
+									message: "User ID is malformed".to_owned(),
+								});
+							};
+
+							let lowercased_user_id = UserId::parse_with_server_name(
+								user_id.localpart().to_lowercase(),
+								self.services.globals.server_name(),
+							)
+							.unwrap();
+
+							if self.services.users.exists(&lowercased_user_id).await {
+								lowercased_user_id
+							} else {
+								user_id
+							}
 						} else {
 							return Err(StandardErrorBody {
 								kind: ErrorKind::forbidden(),
@@ -389,16 +431,6 @@ impl Service {
 							kind: ErrorKind::Unrecognized,
 							message: "Identifier type not recognized".to_owned(),
 						}),
-				};
-
-				let Ok(user_id) = UserId::parse_with_server_name(
-					user_id_or_localpart,
-					self.services.globals.server_name(),
-				) else {
-					return Err(StandardErrorBody {
-						kind: ErrorKind::InvalidParam,
-						message: "User ID is malformed".to_owned(),
-					});
 				};
 
 				// Check if password is correct

@@ -89,17 +89,7 @@ async fn email_for_login(services: &Services, user_id: &UserId) -> Result<Addres
 		return Ok(email);
 	}
 
-	let lowercased_user_id = UserId::parse_with_server_name(
-		user_id.localpart().to_lowercase(),
-		&services.config.server_name,
-	)
-	.unwrap();
-
-	services
-		.threepid
-		.get_email_for_localpart(lowercased_user_id.localpart())
-		.await
-		.ok_or_else(|| err!(Request(Forbidden("This account does not have an email address."))))
+	return Err!(Request(Forbidden("This account does not have an email address.")));
 }
 
 /// Authenticates the given user by its ID and its password.
@@ -233,15 +223,9 @@ pub(crate) async fn handle_login(
 		UserId::parse_with_server_name(user_id_or_localpart, &services.config.server_name)
 			.map_err(|_| err!(Request(InvalidUsername("User ID is malformed"))))?;
 
-	let lowercased_user_id = UserId::parse_with_server_name(
-		user_id.localpart().to_lowercase(),
-		&services.config.server_name,
-	)
-	.unwrap();
+	let user_id = resolve_login_user_id(services, &user_id).await;
 
-	if !services.globals.user_is_local(&user_id)
-		|| !services.globals.user_is_local(&lowercased_user_id)
-	{
+	if !services.globals.user_is_local(&user_id) {
 		return Err!(Request(Unknown("User ID does not belong to this homeserver")));
 	}
 
@@ -255,16 +239,32 @@ pub(crate) async fn handle_login(
 	}
 
 	if cfg!(feature = "ldap") && services.config.ldap.enable {
-		match Box::pin(ldap_login(services, &user_id, &lowercased_user_id, password)).await {
+		match Box::pin(ldap_login(services, &user_id, &user_id, password)).await {
 			| Ok(user_id) => Ok(user_id),
 			| Err(err) if services.config.ldap.ldap_only => Err(err),
 			| Err(err) => {
 				debug_warn!("{err}");
-				password_login(services, &user_id, &lowercased_user_id, password).await
+				password_login(services, &user_id, &user_id, password).await
 			},
 		}
 	} else {
-		password_login(services, &user_id, &lowercased_user_id, password).await
+		password_login(services, &user_id, &user_id, password).await
+	}
+}
+
+async fn resolve_login_user_id(services: &Services, user_id: &UserId) -> OwnedUserId {
+	let lowercased_user_id = UserId::parse_with_server_name(
+		user_id.localpart().to_lowercase(),
+		&services.config.server_name,
+	)
+	.unwrap();
+
+	if services.users.exists(&lowercased_user_id).await {
+		lowercased_user_id.to_owned()
+	} else if services.users.exists(user_id).await {
+		user_id.to_owned()
+	} else {
+		user_id.to_owned()
 	}
 }
 

@@ -4,6 +4,7 @@ use conduwuit::{Err, Error, Result, result::FlatOk};
 use database::{Deserialized, Map};
 use governor::{DefaultKeyedRateLimiter, Quota, RateLimiter};
 use lettre::{Address, message::Mailbox};
+use futures::TryStreamExt;
 use nonzero_ext::nonzero;
 use ruma::{
 	ClientSecret, OwnedClientSecret, OwnedSessionId, SessionId, api::client::error::ErrorKind,
@@ -290,7 +291,9 @@ impl Service {
 		localpart: &str,
 		email: &str,
 	) -> Result<()> {
-		match self.get_localpart_for_email(email).await {
+		let normalized_email = normalize_email(email);
+
+		match self.get_localpart_for_email(&normalized_email).await {
 			| Some(existing_localpart) if existing_localpart != localpart => {
 				// Another account is already using the supplied email.
 
@@ -307,8 +310,8 @@ impl Service {
 				// Remove the user's existing email first.
 				let _ = self.disassociate_localpart_email(localpart).await;
 
-				self.db.localpart_email.insert(localpart, email);
-				self.db.email_localpart.insert(email, localpart);
+				self.db.localpart_email.insert(localpart, &normalized_email);
+				self.db.email_localpart.insert(&normalized_email, localpart);
 				Ok(())
 			},
 		}
@@ -343,11 +346,59 @@ impl Service {
 
 	/// Get the localpart associated with an email, if one exists.
 	pub async fn get_localpart_for_email(&self, email: &str) -> Option<String> {
-		self.db
+		let normalized_email = normalize_email(email);
+
+		if let Some(localpart) = self
+			.db
 			.email_localpart
-			.get(email)
+			.get(normalized_email.as_str())
 			.await
 			.deserialized()
 			.ok()
+		{
+			return Some(localpart);
+		}
+
+		if normalized_email != email {
+			if let Some(localpart) = self
+				.db
+				.email_localpart
+				.get(email)
+				.await
+				.deserialized()
+				.ok()
+			{
+				return Some(localpart);
+			}
+		}
+
+		self.db
+			.email_localpart
+			.stream::<String, String>()
+			.try_filter_map(|(stored_email, localpart)| async move {
+				Ok(if stored_email.eq_ignore_ascii_case(&normalized_email) {
+					Some(localpart)
+				} else {
+					None
+				})
+			})
+			.try_next()
+			.await
+			.ok()
+			.flatten()
+	}
+}
+
+pub(crate) fn normalize_email(email: &str) -> String {
+	email.trim().to_lowercase()
+}
+
+#[cfg(test)]
+mod tests {
+	use super::normalize_email;
+
+	#[test]
+	fn normalize_email_trims_and_lowercases() {
+		assert_eq!(normalize_email("  Alice@Example.COM "), "alice@example.com");
 	}
 }
