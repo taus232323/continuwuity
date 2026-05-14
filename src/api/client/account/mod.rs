@@ -264,6 +264,7 @@ pub(crate) async fn submit_password_change_token_via_email_route(
 pub(crate) struct PasswordResetRequest {
 	pub client_secret: String,
 	pub sid: String,
+	#[serde(alias = "password")]
 	pub new_password: String,
 	#[serde(default)]
 	pub logout_devices: bool,

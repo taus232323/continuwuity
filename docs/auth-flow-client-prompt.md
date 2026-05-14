@@ -191,7 +191,7 @@ Response:
 7. В запросе нужно передать:
    - `client_secret`
    - `sid`
-   - `new_password`
+   - `password` или `new_password`
    - `logout_devices` по необходимости
 
 ## UX требования
