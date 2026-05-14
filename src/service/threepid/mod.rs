@@ -4,7 +4,6 @@ use conduwuit::{Err, Error, Result, result::FlatOk};
 use database::{Deserialized, Map};
 use governor::{DefaultKeyedRateLimiter, Quota, RateLimiter};
 use lettre::{Address, message::Mailbox};
-use futures::TryStreamExt;
 use nonzero_ext::nonzero;
 use ruma::{
 	ClientSecret, OwnedClientSecret, OwnedSessionId, SessionId, api::client::error::ErrorKind,
@@ -348,44 +347,12 @@ impl Service {
 	pub async fn get_localpart_for_email(&self, email: &str) -> Option<String> {
 		let normalized_email = normalize_email(email);
 
-		if let Some(localpart) = self
-			.db
+		self.db
 			.email_localpart
 			.get(normalized_email.as_str())
 			.await
 			.deserialized()
 			.ok()
-		{
-			return Some(localpart);
-		}
-
-		if normalized_email != email {
-			if let Some(localpart) = self
-				.db
-				.email_localpart
-				.get(email)
-				.await
-				.deserialized()
-				.ok()
-			{
-				return Some(localpart);
-			}
-		}
-
-		self.db
-			.email_localpart
-			.stream::<String, String>()
-			.try_filter_map(|(stored_email, localpart)| async move {
-				Ok(if stored_email.eq_ignore_ascii_case(&normalized_email) {
-					Some(localpart)
-				} else {
-					None
-				})
-			})
-			.try_next()
-			.await
-			.ok()
-			.flatten()
 	}
 }
 
