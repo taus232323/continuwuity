@@ -205,16 +205,15 @@ pub(crate) async fn handle_login(
 	password: &str,
 ) -> Result<OwnedUserId> {
 	debug!("Got password login type");
-	let user_id_or_localpart = if let Ok(user_id) =
-		UserId::parse_with_server_name(login, &services.config.server_name)
-	{
-		user_id.localpart().to_owned()
-	} else if let Ok(email) = Address::try_from(login.to_owned()) {
+	let user_id_or_localpart = if let Ok(email) = Address::try_from(login.to_owned()) {
 		services
 			.threepid
 			.get_localpart_for_email(<Address as AsRef<str>>::as_ref(&email))
 			.await
 			.ok_or_else(|| err!(Request(Forbidden("Invalid identifier or password"))))?
+	} else if let Ok(user_id) = UserId::parse_with_server_name(login, &services.config.server_name)
+	{
+		user_id.localpart().to_owned()
 	} else {
 		return Err!(Request(InvalidParam("Identifier type not recognized")));
 	};
